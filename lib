@@ -12,6 +12,7 @@ Category.__index = Category
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
 -- ═══════════════════════════════════════════════════
 --  THEME
@@ -1305,8 +1306,7 @@ function Category:AddColorPicker(config)
     local alpha = config.DefaultAlpha or 1
     local svSize = 120
     local hueBarW = 16
-    local opacityBarH = 14
-    local expandedH = svSize + 36
+    local expandedH = svSize + 42
 
     local holder = Instance.new("Frame")
     holder.Name = config.Name or "ColorPicker"
@@ -1436,43 +1436,58 @@ function Category:AddColorPicker(config)
     hueCursorStroke.Thickness = 1
     hueCursorStroke.Parent = hueCursor
 
-    -- ── Opacity Bar (horizontal, below SV square) ──
-    local opacityBar = Instance.new("Frame")
-    opacityBar.Name = "OpacityBar"
-    opacityBar.BackgroundColor3 = Color3.new(0, 0, 0)
-    opacityBar.Size = UDim2.new(1, -20, 0, opacityBarH)
-    opacityBar.Position = UDim2.new(0, 10, 0, 38 + svSize + 8)
-    opacityBar.Parent = holder
-    Instance.new("UICorner", opacityBar).CornerRadius = UDim.new(0, 4)
+    -- ── Opacity Slider (horizontal, below SV square) ──
+    local opacityLabel = Instance.new("TextLabel")
+    opacityLabel.Name = "OpacityLabel"
+    opacityLabel.Text = "Opacity"
+    opacityLabel.Font = Theme.Font
+    opacityLabel.TextSize = 11
+    opacityLabel.TextColor3 = Theme.SubText
+    opacityLabel.BackgroundTransparency = 1
+    opacityLabel.Size = UDim2.new(0, 50, 0, 14)
+    opacityLabel.Position = UDim2.new(0, 10, 0, 38 + svSize + 6)
+    opacityLabel.TextXAlignment = Enum.TextXAlignment.Left
+    opacityLabel.Parent = holder
 
-    local opacityOverlay = Instance.new("Frame")
-    opacityOverlay.Name = "OpacityOverlay"
-    opacityOverlay.BackgroundColor3 = color
-    opacityOverlay.Size = UDim2.new(1, 0, 1, 0)
-    opacityOverlay.BorderSizePixel = 0
-    opacityOverlay.ZIndex = 2
-    opacityOverlay.Parent = opacityBar
-    Instance.new("UICorner", opacityOverlay).CornerRadius = UDim.new(0, 4)
+    local opacityVal = Instance.new("TextLabel")
+    opacityVal.Name = "OpacityVal"
+    opacityVal.Text = math.floor(alpha * 100 + 0.5) .. "%"
+    opacityVal.Font = Theme.Font
+    opacityVal.TextSize = 11
+    opacityVal.TextColor3 = Theme.SubText
+    opacityVal.BackgroundTransparency = 1
+    opacityVal.Size = UDim2.new(0, 30, 0, 14)
+    opacityVal.Position = UDim2.new(1, -40, 0, 38 + svSize + 6)
+    opacityVal.TextXAlignment = Enum.TextXAlignment.Right
+    opacityVal.Parent = holder
 
-    local opacityGrad = Instance.new("UIGradient")
-    opacityGrad.Transparency = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0),
-        NumberSequenceKeypoint.new(1, 1),
-    })
-    opacityGrad.Parent = opacityOverlay
+    local opacityTrack = Instance.new("Frame")
+    opacityTrack.Name = "OpacityTrack"
+    opacityTrack.BackgroundColor3 = Theme.ToggleOff
+    opacityTrack.Size = UDim2.new(1, -20, 0, 6)
+    opacityTrack.Position = UDim2.new(0, 10, 0, 38 + svSize + 24)
+    opacityTrack.Parent = holder
+    Instance.new("UICorner", opacityTrack).CornerRadius = UDim.new(1, 0)
 
-    local opacityCursor = Instance.new("Frame")
-    opacityCursor.Name = "OpacityCursor"
-    opacityCursor.BackgroundColor3 = Color3.new(1, 1, 1)
-    opacityCursor.Size = UDim2.new(0, 4, 1, 4)
-    opacityCursor.Position = UDim2.new(1 - alpha, -2, 0, -2)
-    opacityCursor.ZIndex = 3
-    opacityCursor.Parent = opacityBar
-    Instance.new("UICorner", opacityCursor).CornerRadius = UDim.new(1, 0)
-    local opacityCursorStroke = Instance.new("UIStroke")
-    opacityCursorStroke.Color = Color3.new(0, 0, 0)
-    opacityCursorStroke.Thickness = 1
-    opacityCursorStroke.Parent = opacityCursor
+    local opacityFill = Instance.new("Frame")
+    opacityFill.Name = "OpacityFill"
+    opacityFill.BackgroundColor3 = color
+    opacityFill.Size = UDim2.new(alpha, 0, 1, 0)
+    opacityFill.Parent = opacityTrack
+    Instance.new("UICorner", opacityFill).CornerRadius = UDim.new(1, 0)
+
+    local opacityKnob = Instance.new("Frame")
+    opacityKnob.Name = "OpacityKnob"
+    opacityKnob.BackgroundColor3 = Color3.new(1, 1, 1)
+    opacityKnob.Size = UDim2.new(0, 12, 0, 12)
+    opacityKnob.Position = UDim2.new(alpha, -6, 0.5, -6)
+    opacityKnob.ZIndex = 2
+    opacityKnob.Parent = opacityTrack
+    Instance.new("UICorner", opacityKnob).CornerRadius = UDim.new(1, 0)
+    local knobStroke = Instance.new("UIStroke")
+    knobStroke.Color = Theme.Border
+    knobStroke.Thickness = 1
+    knobStroke.Parent = opacityKnob
 
     -- ── Update logic ──
     local function updateColor()
@@ -1481,8 +1496,10 @@ function Category:AddColorPicker(config)
         svFrame.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
         svCursor.Position = UDim2.new(s, -6, 1 - v, -6)
         hueCursor.Position = UDim2.new(0, -2, h, -2)
-        opacityOverlay.BackgroundColor3 = color
-        opacityCursor.Position = UDim2.new(1 - alpha, -2, 0, -2)
+        opacityFill.Size = UDim2.new(alpha, 0, 1, 0)
+        opacityFill.BackgroundColor3 = color
+        opacityKnob.Position = UDim2.new(alpha, -6, 0.5, -6)
+        opacityVal.Text = math.floor(alpha * 100 + 0.5) .. "%"
         if config.Callback then config.Callback(color, alpha) end
     end
 
@@ -1533,22 +1550,23 @@ function Category:AddColorPicker(config)
         updateHue(mouse.Y)
     end)
 
-    -- Opacity bar input
-    local opacityBtn = Instance.new("TextButton")
-    opacityBtn.Text = ""
-    opacityBtn.BackgroundTransparency = 1
-    opacityBtn.Size = UDim2.new(1, 0, 1, 0)
-    opacityBtn.ZIndex = 5
-    opacityBtn.Parent = opacityBar
+    -- Opacity track input
+    local opacityInputBtn = Instance.new("TextButton")
+    opacityInputBtn.Text = ""
+    opacityInputBtn.BackgroundTransparency = 1
+    opacityInputBtn.Size = UDim2.new(1, 0, 1, 8)
+    opacityInputBtn.Position = UDim2.new(0, 0, 0, -4)
+    opacityInputBtn.ZIndex = 5
+    opacityInputBtn.Parent = opacityTrack
 
     local function updateAlpha(inputX)
-        local absPos = opacityBar.AbsolutePosition.X
-        local absSize = opacityBar.AbsoluteSize.X
-        alpha = 1 - math.clamp((inputX - absPos) / absSize, 0, 1)
+        local absPos = opacityTrack.AbsolutePosition.X
+        local absSize = opacityTrack.AbsoluteSize.X
+        alpha = math.clamp((inputX - absPos) / absSize, 0, 1)
         updateColor()
     end
 
-    opacityBtn.MouseButton1Down:Connect(function()
+    opacityInputBtn.MouseButton1Down:Connect(function()
         draggingAlpha = true
         local mouse = Players.LocalPlayer:GetMouse()
         updateAlpha(mouse.X)
@@ -1695,6 +1713,80 @@ function Category:AddKeybind(config)
 end
 
 -- ═══════════════════════════════════════════════════
+--  CATEGORY: GROUPBOX
+-- ═══════════════════════════════════════════════════
+function Category:AddGroupBox(config)
+    config = config or {}
+    local col, ci = self:_getColumn(config.Column)
+    local order = self:_incOrder(ci)
+
+    local holder = Instance.new("Frame")
+    holder.Name = config.Name or "GroupBox"
+    holder.BackgroundColor3 = Theme.Glass
+    holder.BackgroundTransparency = Theme.Transparency + 0.15
+    holder.Size = UDim2.new(1, 0, 0, 0)
+    holder.AutomaticSize = Enum.AutomaticSize.Y
+    holder.LayoutOrder = order
+    holder.ClipsDescendants = true
+    holder.Parent = col
+
+    local gbCorner = Instance.new("UICorner")
+    gbCorner.CornerRadius = Theme.CornerSmall
+    gbCorner.Parent = holder
+
+    local gbStroke = Instance.new("UIStroke")
+    gbStroke.Color = Theme.Border
+    gbStroke.Transparency = Theme.BorderTransp
+    gbStroke.Thickness = 1
+    gbStroke.Parent = holder
+
+    local holderLayout = Instance.new("UIListLayout")
+    holderLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    holderLayout.Padding = UDim.new(0, 4)
+    holderLayout.Parent = holder
+
+    local holderPad = Instance.new("UIPadding")
+    holderPad.PaddingLeft = UDim.new(0, 6)
+    holderPad.PaddingRight = UDim.new(0, 6)
+    holderPad.PaddingTop = UDim.new(0, 6)
+    holderPad.PaddingBottom = UDim.new(0, 6)
+    holderPad.Parent = holder
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "GBTitle"
+    titleLabel.Text = config.Text or "Group"
+    titleLabel.Font = Theme.FontBold
+    titleLabel.TextSize = 12
+    titleLabel.TextColor3 = Theme.SubText
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Size = UDim2.new(1, 0, 0, 16)
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.LayoutOrder = 0
+    titleLabel.Parent = holder
+
+    local sep = Instance.new("Frame")
+    sep.Name = "GBSep"
+    sep.BackgroundColor3 = Theme.Border
+    sep.BackgroundTransparency = Theme.BorderTransp
+    sep.Size = UDim2.new(1, 0, 0, 1)
+    sep.LayoutOrder = 1
+    sep.Parent = holder
+
+    local gb = setmetatable({}, Category)
+    gb._lib = self._lib
+    gb._name = self._name
+    gb._data = {
+        cols = {holder},
+        colOrders = {1},
+    }
+    function gb:_getColumn()
+        return self._data.cols[1], 1
+    end
+
+    return gb
+end
+
+-- ═══════════════════════════════════════════════════
 --  KEYBIND
 -- ═══════════════════════════════════════════════════
 function Library:SetKeybind(keyCode)
@@ -1706,6 +1798,59 @@ function Library:SetKeybind(keyCode)
             self.ScreenGui.Enabled = not self.ScreenGui.Enabled
         end
     end)
+end
+
+-- ═══════════════════════════════════════════════════
+--  CUSTOM CURSOR
+-- ═══════════════════════════════════════════════════
+function Library:SetCustomCursor(enabled)
+    if enabled then
+        if not self._cursor then
+            local cursor = Instance.new("Frame")
+            cursor.Name = "CustomCursor"
+            cursor.BackgroundColor3 = Theme.Accent
+            cursor.BackgroundTransparency = 0.1
+            cursor.Size = UDim2.new(0, 12, 0, 12)
+            cursor.AnchorPoint = Vector2.new(0.5, 0.5)
+            cursor.ZIndex = 999
+            cursor.Parent = self.ScreenGui
+            Instance.new("UICorner", cursor).CornerRadius = UDim.new(1, 0)
+
+            local cursorStroke = Instance.new("UIStroke")
+            cursorStroke.Color = Theme.Border
+            cursorStroke.Transparency = 0.2
+            cursorStroke.Thickness = 1
+            cursorStroke.Parent = cursor
+
+            local innerDot = Instance.new("Frame")
+            innerDot.Name = "Dot"
+            innerDot.BackgroundColor3 = Color3.new(1, 1, 1)
+            innerDot.Size = UDim2.new(0, 4, 0, 4)
+            innerDot.AnchorPoint = Vector2.new(0.5, 0.5)
+            innerDot.Position = UDim2.new(0.5, 0, 0.5, 0)
+            innerDot.ZIndex = 1000
+            innerDot.Parent = cursor
+            Instance.new("UICorner", innerDot).CornerRadius = UDim.new(1, 0)
+
+            self._cursor = cursor
+
+            local mouse = Players.LocalPlayer:GetMouse()
+            self._cursorConn = RunService.RenderStepped:Connect(function()
+                if self._cursor and self._cursor.Parent then
+                    self._cursor.Position = UDim2.new(0, mouse.X, 0, mouse.Y)
+                end
+            end)
+        end
+
+        self._cursor.Visible = true
+        UserInputService.MouseIconEnabled = false
+    else
+        if self._cursor then
+            self._cursor.Visible = false
+        end
+        UserInputService.MouseIconEnabled = true
+    end
+    self._customCursorEnabled = enabled or false
 end
 
 -- ═══════════════════════════════════════════════════
@@ -1796,7 +1941,7 @@ function Library:AddSettings()
         end,
     })
 
-    -- Col 3 — Watermark toggle
+    -- Col 3 -- Watermark toggle
     Settings:AddToggle({
         Column = 3,
         Text = "Watermark",
@@ -1805,6 +1950,16 @@ function Library:AddSettings()
             if libSelf._watermark then
                 libSelf._watermark.Visible = state
             end
+        end,
+    })
+
+    -- Col 3 -- Custom Cursor toggle
+    Settings:AddToggle({
+        Column = 3,
+        Text = "Custom Cursor",
+        Default = libSelf._customCursorEnabled or false,
+        Callback = function(state)
+            libSelf:SetCustomCursor(state)
         end,
     })
 
@@ -1966,6 +2121,34 @@ function Library:SetWatermark(config)
 
     self._watermark = wm
 
+    -- Drag watermark
+    wm.Active = true
+    local wmDragging, wmDragInput, wmDragStart, wmStartPos
+    wm.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            wmDragging = true
+            wmDragStart = input.Position
+            wmStartPos = wm.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then wmDragging = false end
+            end)
+        end
+    end)
+    wm.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            wmDragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == wmDragInput and wmDragging then
+            local delta = input.Position - wmDragStart
+            wm.Position = UDim2.new(
+                wmStartPos.X.Scale, wmStartPos.X.Offset + delta.X,
+                wmStartPos.Y.Scale, wmStartPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+
     return {
         SetText = function(_, t) wmLabel.Text = t end,
         Destroy = function() wm:Destroy() end,
@@ -1976,6 +2159,11 @@ end
 --  DESTROY
 -- ═══════════════════════════════════════════════════
 function Library:Destroy()
+    if self._cursorConn then
+        self._cursorConn:Disconnect()
+        self._cursorConn = nil
+    end
+    UserInputService.MouseIconEnabled = true
     if self.ScreenGui then
         self.ScreenGui:Destroy()
     end
