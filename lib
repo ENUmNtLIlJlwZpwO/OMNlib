@@ -1,0 +1,527 @@
+--[[
+    Glassmorphism UI Library for Roblox
+    Style: Modern glass / frosted UI
+    Features: Window, Button, Toggle, Label, Separator
+]]
+
+local Library = {}
+Library.__index = Library
+
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+
+-- ═══════════════════════════════════════════════════
+--  THEME
+-- ═══════════════════════════════════════════════════
+local Theme = {
+    Background      = Color3.fromRGB(18, 18, 24),
+    Glass           = Color3.fromRGB(30, 30, 42),
+    GlassHover      = Color3.fromRGB(40, 40, 55),
+    Accent          = Color3.fromRGB(100, 120, 255),
+    AccentHover     = Color3.fromRGB(130, 145, 255),
+    Text            = Color3.fromRGB(230, 230, 240),
+    SubText         = Color3.fromRGB(150, 150, 170),
+    Border          = Color3.fromRGB(60, 60, 80),
+    ToggleOn        = Color3.fromRGB(100, 220, 140),
+    ToggleOff       = Color3.fromRGB(80, 80, 100),
+    Shadow          = Color3.fromRGB(0, 0, 0),
+
+    Font            = Enum.Font.GothamMedium,
+    FontBold        = Enum.Font.GothamBold,
+    CornerRadius    = UDim.new(0, 8),
+    Transparency    = 0.25,
+    BorderTransp    = 0.6,
+    AnimSpeed       = 0.25,
+}
+
+-- ═══════════════════════════════════════════════════
+--  HELPERS
+-- ═══════════════════════════════════════════════════
+local function tween(obj, props, duration)
+    duration = duration or Theme.AnimSpeed
+    local tw = TweenService:Create(obj, TweenInfo.new(duration, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), props)
+    tw:Play()
+    return tw
+end
+
+local function applyGlass(frame)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = Theme.CornerRadius
+    corner.Parent = frame
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Theme.Border
+    stroke.Transparency = Theme.BorderTransp
+    stroke.Thickness = 1
+    stroke.Parent = frame
+end
+
+local function addShadow(parent)
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxassetid://5554236805"
+    shadow.ImageColor3 = Theme.Shadow
+    shadow.ImageTransparency = 0.6
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(23, 23, 277, 277)
+    shadow.Size = UDim2.new(1, 24, 1, 24)
+    shadow.Position = UDim2.new(0, -12, 0, -12)
+    shadow.ZIndex = parent.ZIndex - 1
+    shadow.Parent = parent
+end
+
+-- ═══════════════════════════════════════════════════
+--  SCREEN GUI
+-- ═══════════════════════════════════════════════════
+function Library.new(title)
+    local self = setmetatable({}, Library)
+
+    -- ScreenGui
+    self.ScreenGui = Instance.new("ScreenGui")
+    self.ScreenGui.Name = "GlassUI"
+    self.ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    self.ScreenGui.ResetOnSpawn = false
+    self.ScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+    -- Main Frame
+    self.Main = Instance.new("Frame")
+    self.Main.Name = "Main"
+    self.Main.BackgroundColor3 = Theme.Background
+    self.Main.BackgroundTransparency = Theme.Transparency
+    self.Main.Size = UDim2.new(0, 320, 0, 0)
+    self.Main.Position = UDim2.new(0.5, -160, 0.5, 0)
+    self.Main.AnchorPoint = Vector2.new(0, 0.5)
+    self.Main.ClipsDescendants = true
+    self.Main.Parent = self.ScreenGui
+    applyGlass(self.Main)
+    addShadow(self.Main)
+
+    -- Title Bar
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.BackgroundColor3 = Theme.Glass
+    titleBar.BackgroundTransparency = 0.3
+    titleBar.Size = UDim2.new(1, 0, 0, 38)
+    titleBar.Parent = self.Main
+
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.CornerRadius = Theme.CornerRadius
+    titleCorner.Parent = titleBar
+
+    -- Accent line
+    local accent = Instance.new("Frame")
+    accent.Name = "AccentLine"
+    accent.BackgroundColor3 = Theme.Accent
+    accent.Size = UDim2.new(0, 40, 0, 3)
+    accent.Position = UDim2.new(0, 16, 1, -1)
+    accent.BorderSizePixel = 0
+    accent.Parent = titleBar
+    Instance.new("UICorner", accent).CornerRadius = UDim.new(0, 2)
+
+    -- Title text
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Text = title or "Glass UI"
+    titleLabel.Font = Theme.FontBold
+    titleLabel.TextSize = 15
+    titleLabel.TextColor3 = Theme.Text
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Size = UDim2.new(1, -80, 1, 0)
+    titleLabel.Position = UDim2.new(0, 16, 0, 0)
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = titleBar
+
+    -- Close Button
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Name = "Close"
+    closeBtn.Text = "×"
+    closeBtn.Font = Theme.Font
+    closeBtn.TextSize = 22
+    closeBtn.TextColor3 = Theme.SubText
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Size = UDim2.new(0, 38, 0, 38)
+    closeBtn.Position = UDim2.new(1, -38, 0, 0)
+    closeBtn.Parent = titleBar
+
+    closeBtn.MouseButton1Click:Connect(function()
+        tween(self.Main, {Size = UDim2.new(0, 320, 0, 0)}, 0.35)
+        task.wait(0.35)
+        self.ScreenGui:Destroy()
+    end)
+
+    closeBtn.MouseEnter:Connect(function()
+        tween(closeBtn, {TextColor3 = Color3.fromRGB(255, 80, 80)}, 0.15)
+    end)
+    closeBtn.MouseLeave:Connect(function()
+        tween(closeBtn, {TextColor3 = Theme.SubText}, 0.15)
+    end)
+
+    -- Minimize Button
+    local minBtn = Instance.new("TextButton")
+    minBtn.Name = "Minimize"
+    minBtn.Text = "–"
+    minBtn.Font = Theme.Font
+    minBtn.TextSize = 20
+    minBtn.TextColor3 = Theme.SubText
+    minBtn.BackgroundTransparency = 1
+    minBtn.Size = UDim2.new(0, 38, 0, 38)
+    minBtn.Position = UDim2.new(1, -72, 0, 0)
+    minBtn.Parent = titleBar
+
+    self._minimized = false
+    self._expandedSize = nil
+
+    minBtn.MouseButton1Click:Connect(function()
+        if self._minimized then
+            tween(self.Main, {Size = self._expandedSize}, 0.3)
+            self._minimized = false
+        else
+            self._expandedSize = self.Main.Size
+            tween(self.Main, {Size = UDim2.new(0, 320, 0, 38)}, 0.3)
+            self._minimized = true
+        end
+    end)
+
+    minBtn.MouseEnter:Connect(function()
+        tween(minBtn, {TextColor3 = Theme.Accent}, 0.15)
+    end)
+    minBtn.MouseLeave:Connect(function()
+        tween(minBtn, {TextColor3 = Theme.SubText}, 0.15)
+    end)
+
+    -- Drag
+    local dragging, dragInput, dragStart, startPos
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = self.Main.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    titleBar.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            self.Main.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+
+    -- Content container
+    self.Content = Instance.new("ScrollingFrame")
+    self.Content.Name = "Content"
+    self.Content.BackgroundTransparency = 1
+    self.Content.Size = UDim2.new(1, 0, 1, -44)
+    self.Content.Position = UDim2.new(0, 0, 0, 42)
+    self.Content.ScrollBarThickness = 3
+    self.Content.ScrollBarImageColor3 = Theme.Accent
+    self.Content.ScrollBarImageTransparency = 0.4
+    self.Content.CanvasSize = UDim2.new(0, 0, 0, 0)
+    self.Content.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    self.Content.ClipsDescendants = true
+    self.Content.Parent = self.Main
+
+    local layout = Instance.new("UIListLayout")
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 6)
+    layout.Parent = self.Content
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft = UDim.new(0, 12)
+    padding.PaddingRight = UDim.new(0, 12)
+    padding.PaddingTop = UDim.new(0, 6)
+    padding.PaddingBottom = UDim.new(0, 10)
+    padding.Parent = self.Content
+
+    self._order = 0
+
+    -- Open animation
+    task.defer(function()
+        task.wait(0.05)
+        tween(self.Main, {Size = UDim2.new(0, 320, 0, 400)}, 0.4)
+    end)
+
+    return self
+end
+
+-- ═══════════════════════════════════════════════════
+--  BUTTON
+-- ═══════════════════════════════════════════════════
+function Library:AddButton(config)
+    config = config or {}
+    self._order = self._order + 1
+
+    local btn = Instance.new("TextButton")
+    btn.Name = config.Name or "Button"
+    btn.Text = config.Text or "Button"
+    btn.Font = Theme.Font
+    btn.TextSize = 14
+    btn.TextColor3 = Theme.Text
+    btn.BackgroundColor3 = Theme.Glass
+    btn.BackgroundTransparency = Theme.Transparency
+    btn.Size = UDim2.new(1, 0, 0, 36)
+    btn.LayoutOrder = self._order
+    btn.AutoButtonColor = false
+    btn.Parent = self.Content
+    applyGlass(btn)
+
+    btn.MouseEnter:Connect(function()
+        tween(btn, {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.15}, 0.2)
+    end)
+
+    btn.MouseLeave:Connect(function()
+        tween(btn, {BackgroundColor3 = Theme.Glass, BackgroundTransparency = Theme.Transparency}, 0.2)
+    end)
+
+    btn.MouseButton1Click:Connect(function()
+        -- Click ripple effect
+        tween(btn, {BackgroundTransparency = 0}, 0.05)
+        task.wait(0.05)
+        tween(btn, {BackgroundTransparency = 0.15}, 0.15)
+
+        if config.Callback then
+            config.Callback()
+        end
+    end)
+
+    return btn
+end
+
+-- ═══════════════════════════════════════════════════
+--  TOGGLE
+-- ═══════════════════════════════════════════════════
+function Library:AddToggle(config)
+    config = config or {}
+    self._order = self._order + 1
+    local state = config.Default or false
+
+    local holder = Instance.new("Frame")
+    holder.Name = config.Name or "Toggle"
+    holder.BackgroundColor3 = Theme.Glass
+    holder.BackgroundTransparency = Theme.Transparency
+    holder.Size = UDim2.new(1, 0, 0, 36)
+    holder.LayoutOrder = self._order
+    holder.Parent = self.Content
+    applyGlass(holder)
+
+    local label = Instance.new("TextLabel")
+    label.Text = config.Text or "Toggle"
+    label.Font = Theme.Font
+    label.TextSize = 14
+    label.TextColor3 = Theme.Text
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.new(1, -60, 1, 0)
+    label.Position = UDim2.new(0, 12, 0, 0)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = holder
+
+    local track = Instance.new("Frame")
+    track.Name = "Track"
+    track.BackgroundColor3 = state and Theme.ToggleOn or Theme.ToggleOff
+    track.Size = UDim2.new(0, 36, 0, 18)
+    track.Position = UDim2.new(1, -48, 0.5, -9)
+    track.Parent = holder
+    Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
+
+    local knob = Instance.new("Frame")
+    knob.Name = "Knob"
+    knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    knob.Size = UDim2.new(0, 14, 0, 14)
+    knob.Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+    knob.Parent = track
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+    local function updateToggle()
+        state = not state
+        tween(track, {BackgroundColor3 = state and Theme.ToggleOn or Theme.ToggleOff}, 0.2)
+        tween(knob, {Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)}, 0.2)
+        if config.Callback then
+            config.Callback(state)
+        end
+    end
+
+    local clickBtn = Instance.new("TextButton")
+    clickBtn.Text = ""
+    clickBtn.BackgroundTransparency = 1
+    clickBtn.Size = UDim2.new(1, 0, 1, 0)
+    clickBtn.ZIndex = 5
+    clickBtn.Parent = holder
+    clickBtn.MouseButton1Click:Connect(updateToggle)
+
+    return {
+        Set = function(_, val)
+            if val ~= state then
+                updateToggle()
+            end
+        end,
+        Get = function()
+            return state
+        end,
+    }
+end
+
+-- ═══════════════════════════════════════════════════
+--  LABEL
+-- ═══════════════════════════════════════════════════
+function Library:AddLabel(text)
+    self._order = self._order + 1
+
+    local label = Instance.new("TextLabel")
+    label.Name = "Label"
+    label.Text = text or "Label"
+    label.Font = Theme.Font
+    label.TextSize = 13
+    label.TextColor3 = Theme.SubText
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.new(1, 0, 0, 24)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.LayoutOrder = self._order
+    label.Parent = self.Content
+
+    return label
+end
+
+-- ═══════════════════════════════════════════════════
+--  SEPARATOR
+-- ═══════════════════════════════════════════════════
+function Library:AddSeparator()
+    self._order = self._order + 1
+
+    local sep = Instance.new("Frame")
+    sep.Name = "Separator"
+    sep.BackgroundColor3 = Theme.Border
+    sep.BackgroundTransparency = 0.5
+    sep.Size = UDim2.new(1, 0, 0, 1)
+    sep.BorderSizePixel = 0
+    sep.LayoutOrder = self._order
+    sep.Parent = self.Content
+end
+
+-- ═══════════════════════════════════════════════════
+--  TEXTBOX (INPUT)
+-- ═══════════════════════════════════════════════════
+function Library:AddTextBox(config)
+    config = config or {}
+    self._order = self._order + 1
+
+    local holder = Instance.new("Frame")
+    holder.Name = config.Name or "TextBox"
+    holder.BackgroundColor3 = Theme.Glass
+    holder.BackgroundTransparency = Theme.Transparency
+    holder.Size = UDim2.new(1, 0, 0, 36)
+    holder.LayoutOrder = self._order
+    holder.Parent = self.Content
+    applyGlass(holder)
+
+    local box = Instance.new("TextBox")
+    box.PlaceholderText = config.Placeholder or "Type here..."
+    box.PlaceholderColor3 = Theme.SubText
+    box.Text = config.Default or ""
+    box.Font = Theme.Font
+    box.TextSize = 14
+    box.TextColor3 = Theme.Text
+    box.BackgroundTransparency = 1
+    box.Size = UDim2.new(1, -24, 1, 0)
+    box.Position = UDim2.new(0, 12, 0, 0)
+    box.ClearTextOnFocus = false
+    box.Parent = holder
+
+    box.Focused:Connect(function()
+        local stroke = holder:FindFirstChildOfClass("UIStroke")
+        if stroke then
+            tween(stroke, {Color = Theme.Accent, Transparency = 0.2}, 0.2)
+        end
+    end)
+
+    box.FocusLost:Connect(function(enterPressed)
+        local stroke = holder:FindFirstChildOfClass("UIStroke")
+        if stroke then
+            tween(stroke, {Color = Theme.Border, Transparency = Theme.BorderTransp}, 0.2)
+        end
+        if enterPressed and config.Callback then
+            config.Callback(box.Text)
+        end
+    end)
+
+    return box
+end
+
+-- ═══════════════════════════════════════════════════
+--  KEYBIND (Toggle visibility)
+-- ═══════════════════════════════════════════════════
+function Library:SetKeybind(keyCode)
+    keyCode = keyCode or Enum.KeyCode.RightShift
+    UserInputService.InputBegan:Connect(function(input, processed)
+        if processed then return end
+        if input.KeyCode == keyCode then
+            self.ScreenGui.Enabled = not self.ScreenGui.Enabled
+        end
+    end)
+end
+
+-- ═══════════════════════════════════════════════════
+--  NOTIFICATION
+-- ═══════════════════════════════════════════════════
+function Library:Notify(config)
+    config = config or {}
+    local duration = config.Duration or 3
+
+    local notif = Instance.new("Frame")
+    notif.Name = "Notification"
+    notif.BackgroundColor3 = Theme.Glass
+    notif.BackgroundTransparency = Theme.Transparency
+    notif.Size = UDim2.new(0, 240, 0, 50)
+    notif.Position = UDim2.new(1, 10, 1, -60)
+    notif.AnchorPoint = Vector2.new(1, 1)
+    notif.Parent = self.ScreenGui
+    applyGlass(notif)
+    addShadow(notif)
+
+    local text = Instance.new("TextLabel")
+    text.Text = config.Text or "Notification"
+    text.Font = Theme.Font
+    text.TextSize = 13
+    text.TextColor3 = Theme.Text
+    text.BackgroundTransparency = 1
+    text.Size = UDim2.new(1, -20, 1, 0)
+    text.Position = UDim2.new(0, 10, 0, 0)
+    text.TextXAlignment = Enum.TextXAlignment.Left
+    text.TextWrapped = true
+    text.Parent = notif
+
+    -- Slide in
+    tween(notif, {Position = UDim2.new(1, -16, 1, -60)}, 0.3)
+
+    -- Auto dismiss
+    task.delay(duration, function()
+        tween(notif, {Position = UDim2.new(1, 10, 1, -60)}, 0.3)
+        task.wait(0.35)
+        notif:Destroy()
+    end)
+end
+
+-- ═══════════════════════════════════════════════════
+--  DESTROY
+-- ═══════════════════════════════════════════════════
+function Library:Destroy()
+    if self.ScreenGui then
+        self.ScreenGui:Destroy()
+    end
+end
+
+return Library
