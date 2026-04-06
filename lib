@@ -830,6 +830,7 @@ function Category:AddDropdown(config)
     optContainer.BackgroundTransparency = 1
     optContainer.Size = UDim2.new(1, 0, 0, 0)
     optContainer.Position = UDim2.new(0, 0, 0, 32)
+    optContainer.Visible = false
     optContainer.Parent = holder
 
     local optLayout = Instance.new("UIListLayout")
@@ -851,6 +852,9 @@ function Category:AddDropdown(config)
         selectedLabel.Text = selected .. "  ▾"
         tween(holder, {Size = UDim2.new(1, 0, 0, 32)}, 0.2)
         tween(pillStroke, {Color = Theme.Border}, 0.15)
+        task.delay(0.2, function()
+            if not open then optContainer.Visible = false end
+        end)
     end
 
     local function updateOptHighlights()
@@ -914,6 +918,7 @@ function Category:AddDropdown(config)
             closeDropdown()
         else
             open = true
+            optContainer.Visible = true
             selectedLabel.Text = selected .. "  ▴"
             tween(pillStroke, {Color = Theme.Accent}, 0.15)
             local totalH = 32 + 8 + #options * 26
