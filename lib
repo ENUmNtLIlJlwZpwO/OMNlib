@@ -324,7 +324,8 @@ end
 -- ═══════════════════════════════════════════════════
 --  ADD CATEGORY
 -- ═══════════════════════════════════════════════════
-function Library:AddCategory(name, icon)
+function Library:AddCategory(name, icon, opts)
+    opts = opts or {}
     self._tabOrder = self._tabOrder + 1
 
     -- Page frame (holds 3 columns, hidden by default)
@@ -353,21 +354,21 @@ function Library:AddCategory(name, icon)
     tabBtn.Size = UDim2.new(0, 0, 0, 26)
     tabBtn.AutomaticSize = Enum.AutomaticSize.X
     tabBtn.AutoButtonColor = false
-    tabBtn.LayoutOrder = self._tabOrder
+    tabBtn.LayoutOrder = opts.LayoutOrder or self._tabOrder
     tabBtn.Parent = self._tabScroll
     applySmallCorner(tabBtn)
 
     local btnPad = Instance.new("UIPadding")
-    btnPad.PaddingLeft = UDim.new(0, 8)
-    btnPad.PaddingRight = UDim.new(0, 10)
+    btnPad.PaddingLeft = UDim.new(0, opts.IconOnly and 6 or 8)
+    btnPad.PaddingRight = UDim.new(0, opts.IconOnly and 6 or 10)
     btnPad.Parent = tabBtn
 
-    local tabLayout = Instance.new("UIListLayout")
-    tabLayout.FillDirection = Enum.FillDirection.Horizontal
-    tabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-    tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    tabLayout.Padding = UDim.new(0, 6)
-    tabLayout.Parent = tabBtn
+    local tabInnerLayout = Instance.new("UIListLayout")
+    tabInnerLayout.FillDirection = Enum.FillDirection.Horizontal
+    tabInnerLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    tabInnerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    tabInnerLayout.Padding = UDim.new(0, 6)
+    tabInnerLayout.Parent = tabBtn
 
     if icon then
         local tabIcon = Instance.new("ImageLabel")
@@ -378,21 +379,22 @@ function Library:AddCategory(name, icon)
         tabIcon.Size = UDim2.new(0, 14, 0, 14)
         tabIcon.LayoutOrder = 1
         tabIcon.Parent = tabBtn
-        -- Store ref for tween
-        tabBtn:SetAttribute("HasIcon", true)
     end
 
-    local tabText = Instance.new("TextLabel")
-    tabText.Name = "TabLabel"
-    tabText.Text = name
-    tabText.Font = Theme.Font
-    tabText.TextSize = 13
-    tabText.TextColor3 = Theme.SubText
-    tabText.BackgroundTransparency = 1
-    tabText.Size = UDim2.new(0, 0, 1, 0)
-    tabText.AutomaticSize = Enum.AutomaticSize.X
-    tabText.LayoutOrder = 2
-    tabText.Parent = tabBtn
+    local tabText = nil
+    if not opts.IconOnly then
+        tabText = Instance.new("TextLabel")
+        tabText.Name = "TabLabel"
+        tabText.Text = name
+        tabText.Font = Theme.Font
+        tabText.TextSize = 13
+        tabText.TextColor3 = Theme.SubText
+        tabText.BackgroundTransparency = 1
+        tabText.Size = UDim2.new(0, 0, 1, 0)
+        tabText.AutomaticSize = Enum.AutomaticSize.X
+        tabText.LayoutOrder = 2
+        tabText.Parent = tabBtn
+    end
 
     -- Store
     self._categories[name] = {
@@ -422,7 +424,7 @@ function Library:AddCategory(name, icon)
             BackgroundColor3 = Theme.TabActive,
             BackgroundTransparency = 0.1,
         }, 0.2)
-        tween(tabText, {TextColor3 = Theme.Text}, 0.2)
+        if tabText then tween(tabText, {TextColor3 = Theme.Text}, 0.2) end
         local myIcon = tabBtn:FindFirstChild("Icon")
         if myIcon then tween(myIcon, {ImageColor3 = Theme.Text}, 0.2) end
         libSelf._activeCategory = name
@@ -432,7 +434,7 @@ function Library:AddCategory(name, icon)
     tabBtn.MouseEnter:Connect(function()
         if libSelf._activeCategory ~= name then
             tween(tabBtn, {BackgroundTransparency = 0.1}, 0.15)
-            tween(tabText, {TextColor3 = Theme.Text}, 0.15)
+            if tabText then tween(tabText, {TextColor3 = Theme.Text}, 0.15) end
             local ico = tabBtn:FindFirstChild("Icon")
             if ico then tween(ico, {ImageColor3 = Theme.Text}, 0.15) end
         end
@@ -440,7 +442,7 @@ function Library:AddCategory(name, icon)
     tabBtn.MouseLeave:Connect(function()
         if libSelf._activeCategory ~= name then
             tween(tabBtn, {BackgroundTransparency = 0.3}, 0.15)
-            tween(tabText, {TextColor3 = Theme.SubText}, 0.15)
+            if tabText then tween(tabText, {TextColor3 = Theme.SubText}, 0.15) end
             local ico = tabBtn:FindFirstChild("Icon")
             if ico then tween(ico, {ImageColor3 = Theme.SubText}, 0.15) end
         end
@@ -1606,12 +1608,88 @@ end
 -- ═══════════════════════════════════════════════════
 function Library:SetKeybind(keyCode)
     keyCode = keyCode or Enum.KeyCode.RightShift
+    self._toggleKeyCode = keyCode
     UserInputService.InputBegan:Connect(function(input, processed)
         if processed then return end
-        if input.KeyCode == keyCode then
+        if input.KeyCode == self._toggleKeyCode then
             self.ScreenGui.Enabled = not self.ScreenGui.Enabled
         end
     end)
+end
+
+-- ═══════════════════════════════════════════════════
+--  SETTINGS CATEGORY (icon-only, far right)
+-- ═══════════════════════════════════════════════════
+function Library:AddSettings()
+    local Settings = self:AddCategory("Settings", "rbxassetid://7734053495", {
+        IconOnly = true,
+        LayoutOrder = 9999,
+    })
+
+    local libSelf = self
+
+    -- Col 1 — Menu Key
+    Settings:AddKeybind({
+        Column = 1,
+        Text = "Menu Key",
+        Default = self._toggleKeyCode or Enum.KeyCode.RightShift,
+        Callback = function() end,
+        OnChanged = function(key)
+            if key ~= Enum.KeyCode.Unknown then
+                libSelf._toggleKeyCode = key
+            end
+        end,
+    })
+
+    -- Col 1 — UI Opacity
+    Settings:AddSlider({
+        Column = 1,
+        Text = "UI Opacity",
+        Min = 0,
+        Max = 100,
+        Default = math.floor((1 - Theme.Transparency) * 100 + 0.5),
+        Callback = function(val)
+            local t = 1 - val / 100
+            libSelf.Main.BackgroundTransparency = t
+        end,
+    })
+
+    -- Col 2 — Theme
+    Settings:AddDropdown({
+        Column = 2,
+        Text = "Theme",
+        Options = {"Dark", "Midnight", "Slate", "Charcoal"},
+        Default = "Dark",
+        Callback = function(opt)
+            -- Theme presets
+            local themes = {
+                Dark      = {bg = {20,20,22},  glass = {32,32,36},  accent = {155,155,165}},
+                Midnight  = {bg = {12,12,20},  glass = {22,22,34},  accent = {130,140,180}},
+                Slate     = {bg = {28,30,34},  glass = {40,42,48},  accent = {140,155,170}},
+                Charcoal  = {bg = {16,16,16},  glass = {28,28,28},  accent = {170,170,170}},
+            }
+            local t = themes[opt]
+            if t then
+                local bg = Color3.fromRGB(unpack(t.bg))
+                local gl = Color3.fromRGB(unpack(t.glass))
+                local ac = Color3.fromRGB(unpack(t.accent))
+                tween(libSelf.Main, {BackgroundColor3 = bg}, 0.3)
+            end
+        end,
+    })
+
+    -- Col 2 — UI Accent Color
+    Settings:AddColorPicker({
+        Column = 2,
+        Text = "UI Accent",
+        Default = Theme.Accent,
+        Callback = function(c)
+            -- Update accent color on accent bars, slider fills, etc.
+            Theme.Accent = c
+        end,
+    })
+
+    return Settings
 end
 
 -- ═══════════════════════════════════════════════════
