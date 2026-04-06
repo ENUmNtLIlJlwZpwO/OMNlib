@@ -634,6 +634,429 @@ function Category:AddTextBox(config)
 end
 
 -- ═══════════════════════════════════════════════════
+--  CATEGORY: SLIDER
+-- ═══════════════════════════════════════════════════
+function Category:AddSlider(config)
+    config = config or {}
+    local col, ci = self:_getColumn(config.Column)
+    local order = self:_incOrder(ci)
+    local min = config.Min or 0
+    local max = config.Max or 100
+    local value = math.clamp(config.Default or min, min, max)
+
+    local holder = Instance.new("Frame")
+    holder.Name = config.Name or "Slider"
+    holder.BackgroundColor3 = Theme.Glass
+    holder.BackgroundTransparency = Theme.Transparency
+    holder.Size = UDim2.new(1, 0, 0, 46)
+    holder.LayoutOrder = order
+    holder.Parent = col
+    applyGlass(holder)
+
+    local label = Instance.new("TextLabel")
+    label.Text = config.Text or "Slider"
+    label.Font = Theme.Font
+    label.TextSize = 12
+    label.TextColor3 = Theme.Text
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.new(1, -50, 0, 18)
+    label.Position = UDim2.new(0, 10, 0, 4)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = holder
+
+    local valLabel = Instance.new("TextLabel")
+    valLabel.Name = "Value"
+    valLabel.Text = tostring(value)
+    valLabel.Font = Theme.Font
+    valLabel.TextSize = 12
+    valLabel.TextColor3 = Theme.SubText
+    valLabel.BackgroundTransparency = 1
+    valLabel.Size = UDim2.new(0, 40, 0, 18)
+    valLabel.Position = UDim2.new(1, -48, 0, 4)
+    valLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valLabel.Parent = holder
+
+    local trackBg = Instance.new("Frame")
+    trackBg.Name = "TrackBg"
+    trackBg.BackgroundColor3 = Theme.ToggleOff
+    trackBg.Size = UDim2.new(1, -20, 0, 6)
+    trackBg.Position = UDim2.new(0, 10, 0, 30)
+    trackBg.Parent = holder
+    Instance.new("UICorner", trackBg).CornerRadius = UDim.new(1, 0)
+
+    local fill = Instance.new("Frame")
+    fill.Name = "Fill"
+    fill.BackgroundColor3 = Theme.Accent
+    local pct = (value - min) / (max - min)
+    fill.Size = UDim2.new(pct, 0, 1, 0)
+    fill.Parent = trackBg
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+
+    local knob = Instance.new("Frame")
+    knob.Name = "Knob"
+    knob.BackgroundColor3 = Theme.Text
+    knob.Size = UDim2.new(0, 12, 0, 12)
+    knob.Position = UDim2.new(pct, -6, 0.5, -6)
+    knob.ZIndex = 3
+    knob.Parent = trackBg
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+    local dragging = false
+
+    local function update(inputX)
+        local absPos = trackBg.AbsolutePosition.X
+        local absSize = trackBg.AbsoluteSize.X
+        local rel = math.clamp((inputX - absPos) / absSize, 0, 1)
+        value = math.floor(min + (max - min) * rel + 0.5)
+        local newPct = (value - min) / (max - min)
+        fill.Size = UDim2.new(newPct, 0, 1, 0)
+        knob.Position = UDim2.new(newPct, -6, 0.5, -6)
+        valLabel.Text = tostring(value)
+        if config.Callback then config.Callback(value) end
+    end
+
+    local inputBtn = Instance.new("TextButton")
+    inputBtn.Text = ""
+    inputBtn.BackgroundTransparency = 1
+    inputBtn.Size = UDim2.new(1, 0, 0, 20)
+    inputBtn.Position = UDim2.new(0, 0, 0, 24)
+    inputBtn.ZIndex = 5
+    inputBtn.Parent = holder
+
+    inputBtn.MouseButton1Down:Connect(function()
+        dragging = true
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            update(input.Position.X)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    inputBtn.MouseButton1Click:Connect(function()
+        local mouse = Players.LocalPlayer:GetMouse()
+        update(mouse.X)
+    end)
+
+    return {
+        Set = function(_, val)
+            value = math.clamp(val, min, max)
+            local p = (value - min) / (max - min)
+            fill.Size = UDim2.new(p, 0, 1, 0)
+            knob.Position = UDim2.new(p, -6, 0.5, -6)
+            valLabel.Text = tostring(value)
+        end,
+        Get = function() return value end,
+    }
+end
+
+-- ═══════════════════════════════════════════════════
+--  CATEGORY: DROPDOWN
+-- ═══════════════════════════════════════════════════
+function Category:AddDropdown(config)
+    config = config or {}
+    local col, ci = self:_getColumn(config.Column)
+    local order = self:_incOrder(ci)
+    local options = config.Options or {}
+    local selected = config.Default or (options[1] or "")
+    local open = false
+
+    local holder = Instance.new("Frame")
+    holder.Name = config.Name or "Dropdown"
+    holder.BackgroundColor3 = Theme.Glass
+    holder.BackgroundTransparency = Theme.Transparency
+    holder.Size = UDim2.new(1, 0, 0, 32)
+    holder.LayoutOrder = order
+    holder.ClipsDescendants = true
+    holder.Parent = col
+    applyGlass(holder)
+
+    local label = Instance.new("TextLabel")
+    label.Text = config.Text or "Dropdown"
+    label.Font = Theme.Font
+    label.TextSize = 12
+    label.TextColor3 = Theme.SubText
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.new(0.5, -5, 0, 32)
+    label.Position = UDim2.new(0, 10, 0, 0)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = holder
+
+    local selectedLabel = Instance.new("TextLabel")
+    selectedLabel.Name = "Selected"
+    selectedLabel.Text = selected .. "  ▾"
+    selectedLabel.Font = Theme.Font
+    selectedLabel.TextSize = 12
+    selectedLabel.TextColor3 = Theme.Text
+    selectedLabel.BackgroundTransparency = 1
+    selectedLabel.Size = UDim2.new(0.5, -10, 0, 32)
+    selectedLabel.Position = UDim2.new(0.5, 0, 0, 0)
+    selectedLabel.TextXAlignment = Enum.TextXAlignment.Right
+    selectedLabel.Parent = holder
+
+    local optContainer = Instance.new("Frame")
+    optContainer.Name = "Options"
+    optContainer.BackgroundTransparency = 1
+    optContainer.Size = UDim2.new(1, 0, 0, 0)
+    optContainer.Position = UDim2.new(0, 0, 0, 32)
+    optContainer.Parent = holder
+
+    local optLayout = Instance.new("UIListLayout")
+    optLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    optLayout.Padding = UDim.new(0, 2)
+    optLayout.Parent = optContainer
+
+    local optPad = Instance.new("UIPadding")
+    optPad.PaddingLeft = UDim.new(0, 6)
+    optPad.PaddingRight = UDim.new(0, 6)
+    optPad.PaddingTop = UDim.new(0, 4)
+    optPad.PaddingBottom = UDim.new(0, 4)
+    optPad.Parent = optContainer
+
+    local function closeDropdown()
+        open = false
+        selectedLabel.Text = selected .. "  ▾"
+        tween(holder, {Size = UDim2.new(1, 0, 0, 32)}, 0.2)
+    end
+
+    local function selectOption(opt)
+        selected = opt
+        if config.Callback then config.Callback(opt) end
+        closeDropdown()
+    end
+
+    for i, opt in ipairs(options) do
+        local optBtn = Instance.new("TextButton")
+        optBtn.Name = "Opt_" .. opt
+        optBtn.Text = opt
+        optBtn.Font = Theme.Font
+        optBtn.TextSize = 12
+        optBtn.TextColor3 = Theme.Text
+        optBtn.BackgroundColor3 = Theme.GlassHover
+        optBtn.BackgroundTransparency = 0.5
+        optBtn.Size = UDim2.new(1, 0, 0, 24)
+        optBtn.AutoButtonColor = false
+        optBtn.LayoutOrder = i
+        optBtn.Parent = optContainer
+        applySmallCorner(optBtn)
+
+        optBtn.MouseEnter:Connect(function()
+            tween(optBtn, {BackgroundTransparency = 0.2}, 0.15)
+        end)
+        optBtn.MouseLeave:Connect(function()
+            tween(optBtn, {BackgroundTransparency = 0.5}, 0.15)
+        end)
+        optBtn.MouseButton1Click:Connect(function()
+            selectOption(opt)
+        end)
+    end
+
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Text = ""
+    toggleBtn.BackgroundTransparency = 1
+    toggleBtn.Size = UDim2.new(1, 0, 0, 32)
+    toggleBtn.ZIndex = 5
+    toggleBtn.Parent = holder
+    toggleBtn.MouseButton1Click:Connect(function()
+        if open then
+            closeDropdown()
+        else
+            open = true
+            selectedLabel.Text = selected .. "  ▴"
+            local totalH = 32 + 8 + #options * 26
+            tween(holder, {Size = UDim2.new(1, 0, 0, totalH)}, 0.2)
+        end
+    end)
+
+    return {
+        Set = function(_, val) selectOption(val) end,
+        Get = function() return selected end,
+    }
+end
+
+-- ═══════════════════════════════════════════════════
+--  CATEGORY: COLOR PICKER
+-- ═══════════════════════════════════════════════════
+function Category:AddColorPicker(config)
+    config = config or {}
+    local col, ci = self:_getColumn(config.Column)
+    local order = self:_incOrder(ci)
+    local color = config.Default or Color3.fromRGB(255, 255, 255)
+    local open = false
+
+    local holder = Instance.new("Frame")
+    holder.Name = config.Name or "ColorPicker"
+    holder.BackgroundColor3 = Theme.Glass
+    holder.BackgroundTransparency = Theme.Transparency
+    holder.Size = UDim2.new(1, 0, 0, 32)
+    holder.LayoutOrder = order
+    holder.ClipsDescendants = true
+    holder.Parent = col
+    applyGlass(holder)
+
+    local label = Instance.new("TextLabel")
+    label.Text = config.Text or "Color"
+    label.Font = Theme.Font
+    label.TextSize = 13
+    label.TextColor3 = Theme.Text
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.new(1, -44, 0, 32)
+    label.Position = UDim2.new(0, 10, 0, 0)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = holder
+
+    local preview = Instance.new("Frame")
+    preview.Name = "Preview"
+    preview.BackgroundColor3 = color
+    preview.Size = UDim2.new(0, 22, 0, 22)
+    preview.Position = UDim2.new(1, -32, 0, 5)
+    preview.Parent = holder
+    Instance.new("UICorner", preview).CornerRadius = UDim.new(0, 4)
+    local previewStroke = Instance.new("UIStroke")
+    previewStroke.Color = Theme.Border
+    previewStroke.Transparency = Theme.BorderTransp
+    previewStroke.Thickness = 1
+    previewStroke.Parent = preview
+
+    -- Expanded area with H, S, V sliders
+    local expandedH = 110
+    local h, s, v = Color3.toHSV(color)
+
+    local function makeColorSlider(name, yPos, val, gradientColors)
+        local track = Instance.new("Frame")
+        track.Name = name
+        track.BackgroundColor3 = Color3.new(1, 1, 1)
+        track.Size = UDim2.new(1, -20, 0, 12)
+        track.Position = UDim2.new(0, 10, 0, yPos)
+        track.Parent = holder
+        Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
+
+        local grad = Instance.new("UIGradient")
+        grad.Color = gradientColors
+        grad.Parent = track
+
+        local sKnob = Instance.new("Frame")
+        sKnob.Name = "Knob"
+        sKnob.BackgroundColor3 = Color3.new(1, 1, 1)
+        sKnob.Size = UDim2.new(0, 10, 0, 16)
+        sKnob.Position = UDim2.new(val, -5, 0.5, -8)
+        sKnob.ZIndex = 3
+        sKnob.Parent = track
+        Instance.new("UICorner", sKnob).CornerRadius = UDim.new(1, 0)
+        local sKnobStroke = Instance.new("UIStroke")
+        sKnobStroke.Color = Theme.Border
+        sKnobStroke.Thickness = 1
+        sKnobStroke.Parent = sKnob
+
+        return track, sKnob, grad
+    end
+
+    local hueColors = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromHSV(0, 1, 1)),
+        ColorSequenceKeypoint.new(0.17, Color3.fromHSV(0.17, 1, 1)),
+        ColorSequenceKeypoint.new(0.33, Color3.fromHSV(0.33, 1, 1)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromHSV(0.5, 1, 1)),
+        ColorSequenceKeypoint.new(0.67, Color3.fromHSV(0.67, 1, 1)),
+        ColorSequenceKeypoint.new(0.83, Color3.fromHSV(0.83, 1, 1)),
+        ColorSequenceKeypoint.new(1, Color3.fromHSV(1, 1, 1)),
+    })
+
+    local satColors = ColorSequence.new(Color3.fromHSV(h, 0, v), Color3.fromHSV(h, 1, v))
+    local valColors = ColorSequence.new(Color3.fromHSV(h, s, 0), Color3.fromHSV(h, s, 1))
+
+    local hTrack, hKnob = makeColorSlider("Hue", 38, h, hueColors)
+    local sTrack, sKnob, sGrad = makeColorSlider("Sat", 62, s, satColors)
+    local vTrack, vKnob, vGrad = makeColorSlider("Val", 86, v, valColors)
+
+    local function updateColor()
+        color = Color3.fromHSV(h, s, v)
+        preview.BackgroundColor3 = color
+        sGrad.Color = ColorSequence.new(Color3.fromHSV(h, 0, v), Color3.fromHSV(h, 1, v))
+        vGrad.Color = ColorSequence.new(Color3.fromHSV(h, s, 0), Color3.fromHSV(h, s, 1))
+        if config.Callback then config.Callback(color) end
+    end
+
+    local activeSlider = nil
+
+    local function hookSlider(track, knob, setter)
+        local btn = Instance.new("TextButton")
+        btn.Text = ""
+        btn.BackgroundTransparency = 1
+        btn.Size = UDim2.new(1, 0, 0, 18)
+        btn.Position = UDim2.new(0, 0, 0.5, -9)
+        btn.ZIndex = 5
+        btn.Parent = track
+
+        btn.MouseButton1Down:Connect(function()
+            activeSlider = {track = track, knob = knob, setter = setter}
+        end)
+        btn.MouseButton1Click:Connect(function()
+            local mouse = Players.LocalPlayer:GetMouse()
+            local rel = math.clamp((mouse.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+            knob.Position = UDim2.new(rel, -5, 0.5, -8)
+            setter(rel)
+            updateColor()
+        end)
+    end
+
+    hookSlider(hTrack, hKnob, function(val) h = val end)
+    hookSlider(sTrack, sKnob, function(val) s = val end)
+    hookSlider(vTrack, vKnob, function(val) v = val end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if activeSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local track = activeSlider.track
+            local rel = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+            activeSlider.knob.Position = UDim2.new(rel, -5, 0.5, -8)
+            activeSlider.setter(rel)
+            updateColor()
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            activeSlider = nil
+        end
+    end)
+
+    -- Toggle open/close
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Text = ""
+    toggleBtn.BackgroundTransparency = 1
+    toggleBtn.Size = UDim2.new(1, 0, 0, 32)
+    toggleBtn.ZIndex = 5
+    toggleBtn.Parent = holder
+    toggleBtn.MouseButton1Click:Connect(function()
+        if open then
+            open = false
+            tween(holder, {Size = UDim2.new(1, 0, 0, 32)}, 0.2)
+        else
+            open = true
+            tween(holder, {Size = UDim2.new(1, 0, 0, 32 + expandedH)}, 0.2)
+        end
+    end)
+
+    return {
+        Set = function(_, c3)
+            color = c3
+            h, s, v = Color3.toHSV(c3)
+            preview.BackgroundColor3 = c3
+            hKnob.Position = UDim2.new(h, -5, 0.5, -8)
+            sKnob.Position = UDim2.new(s, -5, 0.5, -8)
+            vKnob.Position = UDim2.new(v, -5, 0.5, -8)
+            updateColor()
+        end,
+        Get = function() return color end,
+    }
+end
+
+-- ═══════════════════════════════════════════════════
 --  KEYBIND
 -- ═══════════════════════════════════════════════════
 function Library:SetKeybind(keyCode)
