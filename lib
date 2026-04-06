@@ -1,11 +1,15 @@
 --[[
     Glassmorphism UI Library for Roblox
-    Style: Modern glass / frosted UI
-    Features: Window, Button, Toggle, Label, Separator
+    Style: Modern glass / frosted UI — Two-panel layout
+    Left  = features list (per category)
+    Right = category selector tabs
 ]]
 
 local Library = {}
 Library.__index = Library
+
+local Category = {}
+Category.__index = Category
 
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -23,6 +27,9 @@ local Theme = {
     Text            = Color3.fromRGB(230, 230, 240),
     SubText         = Color3.fromRGB(150, 150, 170),
     Border          = Color3.fromRGB(60, 60, 80),
+    TabBg           = Color3.fromRGB(24, 24, 32),
+    TabActive       = Color3.fromRGB(100, 120, 255),
+    TabInactive     = Color3.fromRGB(38, 38, 52),
     ToggleOn        = Color3.fromRGB(100, 220, 140),
     ToggleOff       = Color3.fromRGB(80, 80, 100),
     Shadow          = Color3.fromRGB(0, 0, 0),
@@ -30,9 +37,14 @@ local Theme = {
     Font            = Enum.Font.GothamMedium,
     FontBold        = Enum.Font.GothamBold,
     CornerRadius    = UDim.new(0, 8),
+    CornerSmall     = UDim.new(0, 6),
     Transparency    = 0.25,
     BorderTransp    = 0.6,
     AnimSpeed       = 0.25,
+
+    WindowWidth     = 560,
+    WindowHeight    = 300,
+    TabWidth        = 140,
 }
 
 -- ═══════════════════════════════════════════════════
@@ -73,10 +85,14 @@ local function addShadow(parent)
 end
 
 -- ═══════════════════════════════════════════════════
---  SCREEN GUI
+--  WINDOW
 -- ═══════════════════════════════════════════════════
 function Library.new(title)
     local self = setmetatable({}, Library)
+
+    local W = Theme.WindowWidth
+    local H = Theme.WindowHeight
+    local TW = Theme.TabWidth
 
     -- ScreenGui
     self.ScreenGui = Instance.new("ScreenGui")
@@ -90,25 +106,22 @@ function Library.new(title)
     self.Main.Name = "Main"
     self.Main.BackgroundColor3 = Theme.Background
     self.Main.BackgroundTransparency = Theme.Transparency
-    self.Main.Size = UDim2.new(0, 560, 0, 0)
-    self.Main.Position = UDim2.new(0.5, -280, 0.5, 0)
+    self.Main.Size = UDim2.new(0, W, 0, 0)
+    self.Main.Position = UDim2.new(0.5, -W / 2, 0.5, 0)
     self.Main.AnchorPoint = Vector2.new(0, 0.5)
     self.Main.ClipsDescendants = true
     self.Main.Parent = self.ScreenGui
     applyGlass(self.Main)
     addShadow(self.Main)
 
-    -- Title Bar
+    -- ─── Title Bar ───
     local titleBar = Instance.new("Frame")
     titleBar.Name = "TitleBar"
     titleBar.BackgroundColor3 = Theme.Glass
     titleBar.BackgroundTransparency = 0.3
     titleBar.Size = UDim2.new(1, 0, 0, 38)
     titleBar.Parent = self.Main
-
-    local titleCorner = Instance.new("UICorner")
-    titleCorner.CornerRadius = Theme.CornerRadius
-    titleCorner.Parent = titleBar
+    Instance.new("UICorner", titleBar).CornerRadius = Theme.CornerRadius
 
     -- Accent line
     local accent = Instance.new("Frame")
@@ -146,17 +159,12 @@ function Library.new(title)
     closeBtn.Parent = titleBar
 
     closeBtn.MouseButton1Click:Connect(function()
-        tween(self.Main, {Size = UDim2.new(0, 560, 0, 0)}, 0.35)
+        tween(self.Main, {Size = UDim2.new(0, W, 0, 0)}, 0.35)
         task.wait(0.35)
         self.ScreenGui:Destroy()
     end)
-
-    closeBtn.MouseEnter:Connect(function()
-        tween(closeBtn, {TextColor3 = Color3.fromRGB(255, 80, 80)}, 0.15)
-    end)
-    closeBtn.MouseLeave:Connect(function()
-        tween(closeBtn, {TextColor3 = Theme.SubText}, 0.15)
-    end)
+    closeBtn.MouseEnter:Connect(function() tween(closeBtn, {TextColor3 = Color3.fromRGB(255, 80, 80)}, 0.15) end)
+    closeBtn.MouseLeave:Connect(function() tween(closeBtn, {TextColor3 = Theme.SubText}, 0.15) end)
 
     -- Minimize Button
     local minBtn = Instance.new("TextButton")
@@ -179,19 +187,14 @@ function Library.new(title)
             self._minimized = false
         else
             self._expandedSize = self.Main.Size
-            tween(self.Main, {Size = UDim2.new(0, 560, 0, 38)}, 0.3)
+            tween(self.Main, {Size = UDim2.new(0, W, 0, 38)}, 0.3)
             self._minimized = true
         end
     end)
+    minBtn.MouseEnter:Connect(function() tween(minBtn, {TextColor3 = Theme.Accent}, 0.15) end)
+    minBtn.MouseLeave:Connect(function() tween(minBtn, {TextColor3 = Theme.SubText}, 0.15) end)
 
-    minBtn.MouseEnter:Connect(function()
-        tween(minBtn, {TextColor3 = Theme.Accent}, 0.15)
-    end)
-    minBtn.MouseLeave:Connect(function()
-        tween(minBtn, {TextColor3 = Theme.SubText}, 0.15)
-    end)
-
-    -- Drag
+    -- ─── Drag ───
     local dragging, dragInput, dragStart, startPos
     titleBar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -199,19 +202,15 @@ function Library.new(title)
             dragStart = input.Position
             startPos = self.Main.Position
             input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
             end)
         end
     end)
-
     titleBar.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             dragInput = input
         end
     end)
-
     UserInputService.InputChanged:Connect(function(input)
         if input == dragInput and dragging then
             local delta = input.Position - dragStart
@@ -222,49 +221,198 @@ function Library.new(title)
         end
     end)
 
-    -- Content container
-    self.Content = Instance.new("ScrollingFrame")
-    self.Content.Name = "Content"
-    self.Content.BackgroundTransparency = 1
-    self.Content.Size = UDim2.new(1, 0, 1, -44)
-    self.Content.Position = UDim2.new(0, 0, 0, 42)
-    self.Content.ScrollBarThickness = 3
-    self.Content.ScrollBarImageColor3 = Theme.Accent
-    self.Content.ScrollBarImageTransparency = 0.4
-    self.Content.CanvasSize = UDim2.new(0, 0, 0, 0)
-    self.Content.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    self.Content.ClipsDescendants = true
-    self.Content.Parent = self.Main
+    -- ═══════════════════════════════════════════════
+    --  BODY: two-panel layout
+    -- ═══════════════════════════════════════════════
+    local body = Instance.new("Frame")
+    body.Name = "Body"
+    body.BackgroundTransparency = 1
+    body.Size = UDim2.new(1, 0, 1, -42)
+    body.Position = UDim2.new(0, 0, 0, 42)
+    body.ClipsDescendants = true
+    body.Parent = self.Main
 
-    local layout = Instance.new("UIListLayout")
-    layout.SortOrder = Enum.SortOrder.LayoutOrder
-    layout.Padding = UDim.new(0, 6)
-    layout.Parent = self.Content
+    -- ─── LEFT: Category tabs ───
+    local tabPanel = Instance.new("Frame")
+    tabPanel.Name = "TabPanel"
+    tabPanel.BackgroundColor3 = Theme.TabBg
+    tabPanel.BackgroundTransparency = 0.3
+    tabPanel.Size = UDim2.new(0, TW, 1, 0)
+    tabPanel.Position = UDim2.new(0, 0, 0, 0)
+    tabPanel.Parent = body
+    Instance.new("UICorner", tabPanel).CornerRadius = Theme.CornerSmall
 
-    local padding = Instance.new("UIPadding")
-    padding.PaddingLeft = UDim.new(0, 12)
-    padding.PaddingRight = UDim.new(0, 12)
-    padding.PaddingTop = UDim.new(0, 6)
-    padding.PaddingBottom = UDim.new(0, 10)
-    padding.Parent = self.Content
+    local tabStroke = Instance.new("UIStroke")
+    tabStroke.Color = Theme.Border
+    tabStroke.Transparency = Theme.BorderTransp
+    tabStroke.Thickness = 1
+    tabStroke.Parent = tabPanel
 
-    self._order = 0
+    -- Tab list layout
+    local tabScroll = Instance.new("ScrollingFrame")
+    tabScroll.Name = "TabScroll"
+    tabScroll.BackgroundTransparency = 1
+    tabScroll.Size = UDim2.new(1, 0, 1, 0)
+    tabScroll.ScrollBarThickness = 0
+    tabScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    tabScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    tabScroll.Parent = tabPanel
+
+    local tabLayout = Instance.new("UIListLayout")
+    tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    tabLayout.Padding = UDim.new(0, 4)
+    tabLayout.Parent = tabScroll
+
+    local tabPadding = Instance.new("UIPadding")
+    tabPadding.PaddingLeft = UDim.new(0, 8)
+    tabPadding.PaddingRight = UDim.new(0, 8)
+    tabPadding.PaddingTop = UDim.new(0, 8)
+    tabPadding.PaddingBottom = UDim.new(0, 8)
+    tabPadding.Parent = tabScroll
+
+    -- Vertical separator line
+    local vSep = Instance.new("Frame")
+    vSep.Name = "VSeparator"
+    vSep.BackgroundColor3 = Theme.Border
+    vSep.BackgroundTransparency = 0.4
+    vSep.Size = UDim2.new(0, 1, 1, -8)
+    vSep.Position = UDim2.new(0, TW, 0, 4)
+    vSep.BorderSizePixel = 0
+    vSep.Parent = body
+
+    -- ─── RIGHT: Content area (per-category frames) ───
+    local contentArea = Instance.new("Frame")
+    contentArea.Name = "ContentArea"
+    contentArea.BackgroundTransparency = 1
+    contentArea.Size = UDim2.new(1, -TW - 1, 1, 0)
+    contentArea.Position = UDim2.new(0, TW + 1, 0, 0)
+    contentArea.ClipsDescendants = true
+    contentArea.Parent = body
+
+    -- State
+    self._categories = {}
+    self._tabButtons = {}
+    self._activeCategory = nil
+    self._tabScroll = tabScroll
+    self._contentArea = contentArea
+    self._tabOrder = 0
 
     -- Open animation
     task.defer(function()
         task.wait(0.05)
-        tween(self.Main, {Size = UDim2.new(0, 560, 0, 280)}, 0.4)
+        tween(self.Main, {Size = UDim2.new(0, W, 0, H)}, 0.4)
     end)
 
     return self
 end
 
 -- ═══════════════════════════════════════════════════
---  BUTTON
+--  ADD CATEGORY (creates a tab + content page)
 -- ═══════════════════════════════════════════════════
-function Library:AddButton(config)
+function Library:AddCategory(name, icon)
+    self._tabOrder = self._tabOrder + 1
+    local displayText = icon and (icon .. "  " .. name) or name
+
+    -- Content page (scrolling frame, hidden by default)
+    local page = Instance.new("ScrollingFrame")
+    page.Name = "Page_" .. name
+    page.BackgroundTransparency = 1
+    page.Size = UDim2.new(1, 0, 1, 0)
+    page.ScrollBarThickness = 3
+    page.ScrollBarImageColor3 = Theme.Accent
+    page.ScrollBarImageTransparency = 0.4
+    page.CanvasSize = UDim2.new(0, 0, 0, 0)
+    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    page.ClipsDescendants = true
+    page.Visible = false
+    page.Parent = self._contentArea
+
+    local pageLayout = Instance.new("UIListLayout")
+    pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    pageLayout.Padding = UDim.new(0, 6)
+    pageLayout.Parent = page
+
+    local pagePad = Instance.new("UIPadding")
+    pagePad.PaddingLeft = UDim.new(0, 12)
+    pagePad.PaddingRight = UDim.new(0, 12)
+    pagePad.PaddingTop = UDim.new(0, 8)
+    pagePad.PaddingBottom = UDim.new(0, 10)
+    pagePad.Parent = page
+
+    -- Tab button (right panel)
+    local tabBtn = Instance.new("TextButton")
+    tabBtn.Name = "Tab_" .. name
+    tabBtn.Text = displayText
+    tabBtn.Font = Theme.Font
+    tabBtn.TextSize = 13
+    tabBtn.TextColor3 = Theme.SubText
+    tabBtn.BackgroundColor3 = Theme.TabInactive
+    tabBtn.BackgroundTransparency = 0.3
+    tabBtn.Size = UDim2.new(1, 0, 0, 32)
+    tabBtn.AutoButtonColor = false
+    tabBtn.LayoutOrder = self._tabOrder
+    tabBtn.Parent = self._tabScroll
+    Instance.new("UICorner", tabBtn).CornerRadius = Theme.CornerSmall
+
+    -- Store references
+    self._categories[name] = { page = page, tabBtn = tabBtn, order = 0 }
+    table.insert(self._tabButtons, { name = name, btn = tabBtn })
+
+    -- Switch logic
+    local libSelf = self
+    local function switchTo()
+        -- Deactivate all
+        for catName, cat in pairs(libSelf._categories) do
+            cat.page.Visible = false
+            tween(cat.tabBtn, {
+                BackgroundColor3 = Theme.TabInactive,
+                BackgroundTransparency = 0.3,
+                TextColor3 = Theme.SubText
+            }, 0.2)
+        end
+        -- Activate this one
+        page.Visible = true
+        tween(tabBtn, {
+            BackgroundColor3 = Theme.TabActive,
+            BackgroundTransparency = 0.15,
+            TextColor3 = Theme.Text
+        }, 0.2)
+        libSelf._activeCategory = name
+    end
+
+    tabBtn.MouseButton1Click:Connect(switchTo)
+
+    tabBtn.MouseEnter:Connect(function()
+        if libSelf._activeCategory ~= name then
+            tween(tabBtn, {BackgroundTransparency = 0.15, TextColor3 = Theme.Text}, 0.15)
+        end
+    end)
+    tabBtn.MouseLeave:Connect(function()
+        if libSelf._activeCategory ~= name then
+            tween(tabBtn, {BackgroundTransparency = 0.3, TextColor3 = Theme.SubText}, 0.15)
+        end
+    end)
+
+    -- Auto-select first category
+    if self._tabOrder == 1 then
+        switchTo()
+    end
+
+    -- Return a Category object to chain :AddButton, :AddToggle, etc.
+    local cat = setmetatable({}, Category)
+    cat._lib = self
+    cat._name = name
+    cat._page = page
+    cat._data = self._categories[name]
+    return cat
+end
+
+-- ═══════════════════════════════════════════════════
+--  CATEGORY: BUTTON
+-- ═══════════════════════════════════════════════════
+function Category:AddButton(config)
     config = config or {}
-    self._order = self._order + 1
+    self._data.order = self._data.order + 1
 
     local btn = Instance.new("TextButton")
     btn.Name = config.Name or "Button"
@@ -274,49 +422,43 @@ function Library:AddButton(config)
     btn.TextColor3 = Theme.Text
     btn.BackgroundColor3 = Theme.Glass
     btn.BackgroundTransparency = Theme.Transparency
-    btn.Size = UDim2.new(1, 0, 0, 36)
-    btn.LayoutOrder = self._order
+    btn.Size = UDim2.new(1, 0, 0, 34)
+    btn.LayoutOrder = self._data.order
     btn.AutoButtonColor = false
-    btn.Parent = self.Content
+    btn.Parent = self._page
     applyGlass(btn)
 
     btn.MouseEnter:Connect(function()
         tween(btn, {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.15}, 0.2)
     end)
-
     btn.MouseLeave:Connect(function()
         tween(btn, {BackgroundColor3 = Theme.Glass, BackgroundTransparency = Theme.Transparency}, 0.2)
     end)
-
     btn.MouseButton1Click:Connect(function()
-        -- Click ripple effect
         tween(btn, {BackgroundTransparency = 0}, 0.05)
         task.wait(0.05)
         tween(btn, {BackgroundTransparency = 0.15}, 0.15)
-
-        if config.Callback then
-            config.Callback()
-        end
+        if config.Callback then config.Callback() end
     end)
 
     return btn
 end
 
 -- ═══════════════════════════════════════════════════
---  TOGGLE
+--  CATEGORY: TOGGLE
 -- ═══════════════════════════════════════════════════
-function Library:AddToggle(config)
+function Category:AddToggle(config)
     config = config or {}
-    self._order = self._order + 1
+    self._data.order = self._data.order + 1
     local state = config.Default or false
 
     local holder = Instance.new("Frame")
     holder.Name = config.Name or "Toggle"
     holder.BackgroundColor3 = Theme.Glass
     holder.BackgroundTransparency = Theme.Transparency
-    holder.Size = UDim2.new(1, 0, 0, 36)
-    holder.LayoutOrder = self._order
-    holder.Parent = self.Content
+    holder.Size = UDim2.new(1, 0, 0, 34)
+    holder.LayoutOrder = self._data.order
+    holder.Parent = self._page
     applyGlass(holder)
 
     local label = Instance.new("TextLabel")
@@ -350,9 +492,7 @@ function Library:AddToggle(config)
         state = not state
         tween(track, {BackgroundColor3 = state and Theme.ToggleOn or Theme.ToggleOff}, 0.2)
         tween(knob, {Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)}, 0.2)
-        if config.Callback then
-            config.Callback(state)
-        end
+        if config.Callback then config.Callback(state) end
     end
 
     local clickBtn = Instance.new("TextButton")
@@ -364,22 +504,16 @@ function Library:AddToggle(config)
     clickBtn.MouseButton1Click:Connect(updateToggle)
 
     return {
-        Set = function(_, val)
-            if val ~= state then
-                updateToggle()
-            end
-        end,
-        Get = function()
-            return state
-        end,
+        Set = function(_, val) if val ~= state then updateToggle() end end,
+        Get = function() return state end,
     }
 end
 
 -- ═══════════════════════════════════════════════════
---  LABEL
+--  CATEGORY: LABEL
 -- ═══════════════════════════════════════════════════
-function Library:AddLabel(text)
-    self._order = self._order + 1
+function Category:AddLabel(text)
+    self._data.order = self._data.order + 1
 
     local label = Instance.new("TextLabel")
     label.Name = "Label"
@@ -388,19 +522,18 @@ function Library:AddLabel(text)
     label.TextSize = 13
     label.TextColor3 = Theme.SubText
     label.BackgroundTransparency = 1
-    label.Size = UDim2.new(1, 0, 0, 24)
+    label.Size = UDim2.new(1, 0, 0, 22)
     label.TextXAlignment = Enum.TextXAlignment.Left
-    label.LayoutOrder = self._order
-    label.Parent = self.Content
-
+    label.LayoutOrder = self._data.order
+    label.Parent = self._page
     return label
 end
 
 -- ═══════════════════════════════════════════════════
---  SEPARATOR
+--  CATEGORY: SEPARATOR
 -- ═══════════════════════════════════════════════════
-function Library:AddSeparator()
-    self._order = self._order + 1
+function Category:AddSeparator()
+    self._data.order = self._data.order + 1
 
     local sep = Instance.new("Frame")
     sep.Name = "Separator"
@@ -408,24 +541,24 @@ function Library:AddSeparator()
     sep.BackgroundTransparency = 0.5
     sep.Size = UDim2.new(1, 0, 0, 1)
     sep.BorderSizePixel = 0
-    sep.LayoutOrder = self._order
-    sep.Parent = self.Content
+    sep.LayoutOrder = self._data.order
+    sep.Parent = self._page
 end
 
 -- ═══════════════════════════════════════════════════
---  TEXTBOX (INPUT)
+--  CATEGORY: TEXTBOX
 -- ═══════════════════════════════════════════════════
-function Library:AddTextBox(config)
+function Category:AddTextBox(config)
     config = config or {}
-    self._order = self._order + 1
+    self._data.order = self._data.order + 1
 
     local holder = Instance.new("Frame")
     holder.Name = config.Name or "TextBox"
     holder.BackgroundColor3 = Theme.Glass
     holder.BackgroundTransparency = Theme.Transparency
-    holder.Size = UDim2.new(1, 0, 0, 36)
-    holder.LayoutOrder = self._order
-    holder.Parent = self.Content
+    holder.Size = UDim2.new(1, 0, 0, 34)
+    holder.LayoutOrder = self._data.order
+    holder.Parent = self._page
     applyGlass(holder)
 
     local box = Instance.new("TextBox")
@@ -443,19 +576,12 @@ function Library:AddTextBox(config)
 
     box.Focused:Connect(function()
         local stroke = holder:FindFirstChildOfClass("UIStroke")
-        if stroke then
-            tween(stroke, {Color = Theme.Accent, Transparency = 0.2}, 0.2)
-        end
+        if stroke then tween(stroke, {Color = Theme.Accent, Transparency = 0.2}, 0.2) end
     end)
-
     box.FocusLost:Connect(function(enterPressed)
         local stroke = holder:FindFirstChildOfClass("UIStroke")
-        if stroke then
-            tween(stroke, {Color = Theme.Border, Transparency = Theme.BorderTransp}, 0.2)
-        end
-        if enterPressed and config.Callback then
-            config.Callback(box.Text)
-        end
+        if stroke then tween(stroke, {Color = Theme.Border, Transparency = Theme.BorderTransp}, 0.2) end
+        if enterPressed and config.Callback then config.Callback(box.Text) end
     end)
 
     return box
@@ -504,10 +630,8 @@ function Library:Notify(config)
     text.TextWrapped = true
     text.Parent = notif
 
-    -- Slide in
     tween(notif, {Position = UDim2.new(1, -16, 1, -60)}, 0.3)
 
-    -- Auto dismiss
     task.delay(duration, function()
         tween(notif, {Position = UDim2.new(1, 10, 1, -60)}, 0.3)
         task.wait(0.35)
