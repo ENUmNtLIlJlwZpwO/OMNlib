@@ -592,6 +592,73 @@ function Category:AddSeparator(colNum)
 end
 
 -- ═══════════════════════════════════════════════════
+--  CATEGORY: PARAGRAPH (text block, optional title)
+-- ═══════════════════════════════════════════════════
+function Category:AddParagraph(config)
+    config = config or {}
+    local col, ci = self:_getColumn(config.Column)
+    local order = self:_incOrder(ci)
+
+    local hasTitle = config.Title and config.Title ~= ""
+    local text = config.Text or ""
+
+    -- Measure approximate height
+    local titleH = hasTitle and 20 or 0
+    local textH = math.max(24, math.ceil(#text / 30) * 16)
+    local totalH = titleH + textH + 12
+
+    local holder = Instance.new("Frame")
+    holder.Name = config.Name or "Paragraph"
+    holder.BackgroundColor3 = Theme.Glass
+    holder.BackgroundTransparency = Theme.Transparency
+    holder.Size = UDim2.new(1, 0, 0, totalH)
+    holder.LayoutOrder = order
+    holder.Parent = col
+    applyGlass(holder)
+
+    local yOffset = 6
+
+    if hasTitle then
+        local title = Instance.new("TextLabel")
+        title.Name = "Title"
+        title.Text = config.Title
+        title.Font = Theme.FontBold
+        title.TextSize = 13
+        title.TextColor3 = Theme.Text
+        title.BackgroundTransparency = 1
+        title.Size = UDim2.new(1, -20, 0, 18)
+        title.Position = UDim2.new(0, 10, 0, yOffset)
+        title.TextXAlignment = Enum.TextXAlignment.Left
+        title.Parent = holder
+        yOffset = yOffset + 20
+    end
+
+    local body = Instance.new("TextLabel")
+    body.Name = "Body"
+    body.Text = text
+    body.Font = Theme.Font
+    body.TextSize = 12
+    body.TextColor3 = Theme.SubText
+    body.BackgroundTransparency = 1
+    body.Size = UDim2.new(1, -20, 0, textH)
+    body.Position = UDim2.new(0, 10, 0, yOffset)
+    body.TextXAlignment = Enum.TextXAlignment.Left
+    body.TextYAlignment = Enum.TextYAlignment.Top
+    body.TextWrapped = true
+    body.Parent = holder
+
+    return {
+        SetTitle = function(_, t)
+            local titleLabel = holder:FindFirstChild("Title")
+            if titleLabel then titleLabel.Text = t end
+        end,
+        SetText = function(_, t)
+            body.Text = t
+        end,
+    }
+end
+
+-- ═══════════════════════════════════════════════════
 --  CATEGORY: TEXTBOX
 -- ═══════════════════════════════════════════════════
 function Category:AddTextBox(config)
