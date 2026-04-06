@@ -775,7 +775,7 @@ function Category:AddSlider(config)
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = holder
 
-    local valLabel = Instance.new("TextLabel")
+    local valLabel = Instance.new("TextBox")
     valLabel.Name = "Value"
     valLabel.Text = tostring(value)
     valLabel.Font = Theme.Font
@@ -785,7 +785,30 @@ function Category:AddSlider(config)
     valLabel.Size = UDim2.new(0, 40, 0, 18)
     valLabel.Position = UDim2.new(1, -48, 0, 4)
     valLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valLabel.ClearTextOnFocus = true
     valLabel.Parent = holder
+
+    local function setVal(v)
+        value = math.clamp(v, min, max)
+        local p = (value - min) / (max - min)
+        fill.Size = UDim2.new(p, 0, 1, 0)
+        knob.Position = UDim2.new(p, -6, 0.5, -6)
+        valLabel.Text = tostring(value)
+        if config.Callback then config.Callback(value) end
+    end
+
+    valLabel.Focused:Connect(function()
+        valLabel.TextColor3 = Theme.Text
+    end)
+    valLabel.FocusLost:Connect(function(enterPressed)
+        valLabel.TextColor3 = Theme.SubText
+        local num = tonumber(valLabel.Text)
+        if num then
+            setVal(math.floor(num + 0.5))
+        else
+            valLabel.Text = tostring(value)
+        end
+    end)
 
     local trackBg = Instance.new("Frame")
     trackBg.Name = "TrackBg"
@@ -1279,9 +1302,11 @@ function Category:AddColorPicker(config)
     local open = false
 
     local h, s, v = Color3.toHSV(color)
+    local alpha = config.DefaultAlpha or 1
     local svSize = 120
     local hueBarW = 16
-    local expandedH = svSize + 28
+    local opacityBarH = 14
+    local expandedH = svSize + 36
 
     local holder = Instance.new("Frame")
     holder.Name = config.Name or "ColorPicker"
@@ -1411,6 +1436,44 @@ function Category:AddColorPicker(config)
     hueCursorStroke.Thickness = 1
     hueCursorStroke.Parent = hueCursor
 
+    -- ── Opacity Bar (horizontal, below SV square) ──
+    local opacityBar = Instance.new("Frame")
+    opacityBar.Name = "OpacityBar"
+    opacityBar.BackgroundColor3 = Color3.new(0, 0, 0)
+    opacityBar.Size = UDim2.new(1, -20, 0, opacityBarH)
+    opacityBar.Position = UDim2.new(0, 10, 0, 38 + svSize + 8)
+    opacityBar.Parent = holder
+    Instance.new("UICorner", opacityBar).CornerRadius = UDim.new(0, 4)
+
+    local opacityOverlay = Instance.new("Frame")
+    opacityOverlay.Name = "OpacityOverlay"
+    opacityOverlay.BackgroundColor3 = color
+    opacityOverlay.Size = UDim2.new(1, 0, 1, 0)
+    opacityOverlay.BorderSizePixel = 0
+    opacityOverlay.ZIndex = 2
+    opacityOverlay.Parent = opacityBar
+    Instance.new("UICorner", opacityOverlay).CornerRadius = UDim.new(0, 4)
+
+    local opacityGrad = Instance.new("UIGradient")
+    opacityGrad.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0),
+        NumberSequenceKeypoint.new(1, 1),
+    })
+    opacityGrad.Parent = opacityOverlay
+
+    local opacityCursor = Instance.new("Frame")
+    opacityCursor.Name = "OpacityCursor"
+    opacityCursor.BackgroundColor3 = Color3.new(1, 1, 1)
+    opacityCursor.Size = UDim2.new(0, 4, 1, 4)
+    opacityCursor.Position = UDim2.new(1 - alpha, -2, 0, -2)
+    opacityCursor.ZIndex = 3
+    opacityCursor.Parent = opacityBar
+    Instance.new("UICorner", opacityCursor).CornerRadius = UDim.new(1, 0)
+    local opacityCursorStroke = Instance.new("UIStroke")
+    opacityCursorStroke.Color = Color3.new(0, 0, 0)
+    opacityCursorStroke.Thickness = 1
+    opacityCursorStroke.Parent = opacityCursor
+
     -- ── Update logic ──
     local function updateColor()
         color = Color3.fromHSV(h, s, v)
@@ -1418,11 +1481,14 @@ function Category:AddColorPicker(config)
         svFrame.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
         svCursor.Position = UDim2.new(s, -6, 1 - v, -6)
         hueCursor.Position = UDim2.new(0, -2, h, -2)
-        if config.Callback then config.Callback(color) end
+        opacityOverlay.BackgroundColor3 = color
+        opacityCursor.Position = UDim2.new(1 - alpha, -2, 0, -2)
+        if config.Callback then config.Callback(color, alpha) end
     end
 
     local draggingSV = false
     local draggingHue = false
+    local draggingAlpha = false
 
     -- SV square input
     local svBtn = Instance.new("TextButton")
@@ -1467,12 +1533,35 @@ function Category:AddColorPicker(config)
         updateHue(mouse.Y)
     end)
 
+    -- Opacity bar input
+    local opacityBtn = Instance.new("TextButton")
+    opacityBtn.Text = ""
+    opacityBtn.BackgroundTransparency = 1
+    opacityBtn.Size = UDim2.new(1, 0, 1, 0)
+    opacityBtn.ZIndex = 5
+    opacityBtn.Parent = opacityBar
+
+    local function updateAlpha(inputX)
+        local absPos = opacityBar.AbsolutePosition.X
+        local absSize = opacityBar.AbsoluteSize.X
+        alpha = 1 - math.clamp((inputX - absPos) / absSize, 0, 1)
+        updateColor()
+    end
+
+    opacityBtn.MouseButton1Down:Connect(function()
+        draggingAlpha = true
+        local mouse = Players.LocalPlayer:GetMouse()
+        updateAlpha(mouse.X)
+    end)
+
     UserInputService.InputChanged:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
             if draggingSV then
                 updateSV(input.Position.X, input.Position.Y)
             elseif draggingHue then
                 updateHue(input.Position.Y)
+            elseif draggingAlpha then
+                updateAlpha(input.Position.X)
             end
         end
     end)
@@ -1481,6 +1570,7 @@ function Category:AddColorPicker(config)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             draggingSV = false
             draggingHue = false
+            draggingAlpha = false
         end
     end)
 
@@ -1502,13 +1592,14 @@ function Category:AddColorPicker(config)
     end)
 
     return {
-        Set = function(_, c3)
+        Set = function(_, c3, a)
             color = c3
             h, s, v = Color3.toHSV(c3)
+            if a ~= nil then alpha = a end
             preview.BackgroundColor3 = c3
             updateColor()
         end,
-        Get = function() return color end,
+        Get = function() return color, alpha end,
     }
 end
 
