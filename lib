@@ -841,8 +841,8 @@ function Category:AddDropdown(config)
     local optPad = Instance.new("UIPadding")
     optPad.PaddingLeft = UDim.new(0, 6)
     optPad.PaddingRight = UDim.new(0, 6)
-    optPad.PaddingTop = UDim.new(0, 10)
-    optPad.PaddingBottom = UDim.new(0, 10)
+    optPad.PaddingTop = UDim.new(0, 14)
+    optPad.PaddingBottom = UDim.new(0, 6)
     optPad.Parent = optContainer
 
     local optButtons = {}
