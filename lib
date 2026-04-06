@@ -1042,6 +1042,231 @@ function Category:AddDropdown(config)
 end
 
 -- ═══════════════════════════════════════════════════
+--  CATEGORY: MULTI-SELECT DROPDOWN
+-- ═══════════════════════════════════════════════════
+function Category:AddMultiDropdown(config)
+    config = config or {}
+    local col, ci = self:_getColumn(config.Column)
+    local order = self:_incOrder(ci)
+    local options = config.Options or {}
+    local selected = {}
+    if config.Default then
+        for _, v in ipairs(config.Default) do selected[v] = true end
+    end
+    local open = false
+
+    local holder = Instance.new("Frame")
+    holder.Name = config.Name or "MultiDropdown"
+    holder.BackgroundColor3 = Theme.Glass
+    holder.BackgroundTransparency = Theme.Transparency
+    holder.Size = UDim2.new(1, 0, 0, 32)
+    holder.LayoutOrder = order
+    holder.ClipsDescendants = true
+    holder.Parent = col
+    applyGlass(holder)
+
+    local accentBar = Instance.new("Frame")
+    accentBar.Name = "AccentBar"
+    accentBar.BackgroundColor3 = Theme.Accent
+    accentBar.Size = UDim2.new(0, 3, 0, 20)
+    accentBar.Position = UDim2.new(0, 4, 0, 6)
+    accentBar.BorderSizePixel = 0
+    accentBar.Parent = holder
+    Instance.new("UICorner", accentBar).CornerRadius = UDim.new(1, 0)
+
+    -- Second accent bar to distinguish from single dropdown
+    local accentBar2 = Instance.new("Frame")
+    accentBar2.Name = "AccentBar2"
+    accentBar2.BackgroundColor3 = Theme.Accent
+    accentBar2.BackgroundTransparency = 0.5
+    accentBar2.Size = UDim2.new(0, 2, 0, 14)
+    accentBar2.Position = UDim2.new(0, 9, 0, 9)
+    accentBar2.BorderSizePixel = 0
+    accentBar2.Parent = holder
+    Instance.new("UICorner", accentBar2).CornerRadius = UDim.new(1, 0)
+
+    local label = Instance.new("TextLabel")
+    label.Text = config.Text or "Multi Select"
+    label.Font = Theme.Font
+    label.TextSize = 12
+    label.TextColor3 = Theme.SubText
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.new(0.5, -5, 0, 32)
+    label.Position = UDim2.new(0, 18, 0, 0)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = holder
+
+    local function getSelectedText()
+        local list = {}
+        for _, opt in ipairs(options) do
+            if selected[opt] then table.insert(list, opt) end
+        end
+        if #list == 0 then return "None" end
+        if #list <= 2 then return table.concat(list, ", ") end
+        return list[1] .. " +" .. (#list - 1)
+    end
+
+    local selectedPill = Instance.new("Frame")
+    selectedPill.Name = "SelectedPill"
+    selectedPill.BackgroundColor3 = Theme.TabInactive
+    selectedPill.BackgroundTransparency = 0.3
+    selectedPill.Size = UDim2.new(0.5, -14, 0, 22)
+    selectedPill.Position = UDim2.new(0.5, 2, 0, 5)
+    selectedPill.Parent = holder
+    Instance.new("UICorner", selectedPill).CornerRadius = UDim.new(0, 5)
+    local pillStroke = Instance.new("UIStroke")
+    pillStroke.Color = Theme.Border
+    pillStroke.Transparency = Theme.BorderTransp
+    pillStroke.Thickness = 1
+    pillStroke.Parent = selectedPill
+
+    local selectedLabel = Instance.new("TextLabel")
+    selectedLabel.Name = "Selected"
+    selectedLabel.Text = getSelectedText()
+    selectedLabel.Font = Theme.Font
+    selectedLabel.TextSize = 11
+    selectedLabel.TextColor3 = Theme.Text
+    selectedLabel.BackgroundTransparency = 1
+    selectedLabel.Size = UDim2.new(1, -10, 1, 0)
+    selectedLabel.Position = UDim2.new(0, 5, 0, 0)
+    selectedLabel.TextXAlignment = Enum.TextXAlignment.Center
+    selectedLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    selectedLabel.Parent = selectedPill
+
+    local optContainer = Instance.new("Frame")
+    optContainer.Name = "Options"
+    optContainer.BackgroundTransparency = 1
+    optContainer.Size = UDim2.new(1, 0, 0, 0)
+    optContainer.Position = UDim2.new(0, 0, 0, 42)
+    optContainer.Visible = false
+    optContainer.Parent = holder
+
+    local optLayout = Instance.new("UIListLayout")
+    optLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    optLayout.Padding = UDim.new(0, 2)
+    optLayout.Parent = optContainer
+
+    local optPad = Instance.new("UIPadding")
+    optPad.PaddingLeft = UDim.new(0, 6)
+    optPad.PaddingRight = UDim.new(0, 6)
+    optPad.PaddingTop = UDim.new(0, 4)
+    optPad.PaddingBottom = UDim.new(0, 6)
+    optPad.Parent = optContainer
+
+    local optButtons = {}
+
+    local function getSelectedList()
+        local list = {}
+        for _, opt in ipairs(options) do
+            if selected[opt] then table.insert(list, opt) end
+        end
+        return list
+    end
+
+    local function updateHighlights()
+        for _, data in ipairs(optButtons) do
+            if selected[data.opt] then
+                tween(data.btn, {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.3}, 0.15)
+                data.check.TextTransparency = 0
+            else
+                tween(data.btn, {BackgroundColor3 = Theme.GlassHover, BackgroundTransparency = 0.5}, 0.15)
+                data.check.TextTransparency = 1
+            end
+        end
+        selectedLabel.Text = getSelectedText()
+    end
+
+    for i, opt in ipairs(options) do
+        local optBtn = Instance.new("TextButton")
+        optBtn.Name = "Opt_" .. opt
+        optBtn.Text = ""
+        optBtn.BackgroundColor3 = selected[opt] and Theme.Accent or Theme.GlassHover
+        optBtn.BackgroundTransparency = selected[opt] and 0.3 or 0.5
+        optBtn.Size = UDim2.new(1, 0, 0, 24)
+        optBtn.AutoButtonColor = false
+        optBtn.LayoutOrder = i
+        optBtn.Parent = optContainer
+        applySmallCorner(optBtn)
+
+        local checkBox = Instance.new("TextLabel")
+        checkBox.Text = "  [" .. (selected[opt] and "x" or " ") .. "]  " .. opt
+        checkBox.Font = Theme.Font
+        checkBox.TextSize = 12
+        checkBox.TextColor3 = Theme.Text
+        checkBox.TextXAlignment = Enum.TextXAlignment.Left
+        checkBox.BackgroundTransparency = 1
+        checkBox.Size = UDim2.new(1, -26, 1, 0)
+        checkBox.Parent = optBtn
+
+        local checkMark = Instance.new("TextLabel")
+        checkMark.Name = "Check"
+        checkMark.Text = "x"
+        checkMark.Font = Theme.FontBold
+        checkMark.TextSize = 11
+        checkMark.TextColor3 = Theme.Text
+        checkMark.BackgroundTransparency = 1
+        checkMark.Size = UDim2.new(0, 14, 0, 14)
+        checkMark.Position = UDim2.new(1, -20, 0.5, -7)
+        checkMark.TextTransparency = selected[opt] and 0 or 1
+        checkMark.Parent = optBtn
+
+        table.insert(optButtons, {btn = optBtn, opt = opt, label = checkBox, check = checkMark})
+
+        optBtn.MouseEnter:Connect(function()
+            if not selected[opt] then
+                tween(optBtn, {BackgroundTransparency = 0.2}, 0.15)
+            end
+        end)
+        optBtn.MouseLeave:Connect(function()
+            if not selected[opt] then
+                tween(optBtn, {BackgroundTransparency = 0.5}, 0.15)
+            end
+        end)
+        optBtn.MouseButton1Click:Connect(function()
+            selected[opt] = not selected[opt]
+            updateHighlights()
+            if config.Callback then config.Callback(getSelectedList()) end
+        end)
+    end
+
+    local function closeDropdown()
+        open = false
+        tween(holder, {Size = UDim2.new(1, 0, 0, 32)}, 0.2)
+        tween(pillStroke, {Color = Theme.Border}, 0.15)
+        task.delay(0.2, function()
+            if not open then optContainer.Visible = false end
+        end)
+    end
+
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Text = ""
+    toggleBtn.BackgroundTransparency = 1
+    toggleBtn.Size = UDim2.new(1, 0, 0, 32)
+    toggleBtn.ZIndex = 5
+    toggleBtn.Parent = holder
+    toggleBtn.MouseButton1Click:Connect(function()
+        if open then
+            closeDropdown()
+        else
+            open = true
+            optContainer.Visible = true
+            tween(pillStroke, {Color = Theme.Accent}, 0.15)
+            local totalH = 42 + 4 + #options * 26
+            tween(holder, {Size = UDim2.new(1, 0, 0, totalH)}, 0.2)
+        end
+    end)
+
+    return {
+        Set = function(_, list)
+            selected = {}
+            for _, v in ipairs(list) do selected[v] = true end
+            updateHighlights()
+        end,
+        Get = function() return getSelectedList() end,
+    }
+end
+
+-- ═══════════════════════════════════════════════════
 --  CATEGORY: COLOR PICKER (SV square + Hue bar)
 -- ═══════════════════════════════════════════════════
 function Category:AddColorPicker(config)
@@ -1286,6 +1511,97 @@ function Category:AddColorPicker(config)
 end
 
 -- ═══════════════════════════════════════════════════
+--  CATEGORY: KEYBIND PICKER
+-- ═══════════════════════════════════════════════════
+function Category:AddKeybind(config)
+    config = config or {}
+    local col, ci = self:_getColumn(config.Column)
+    local order = self:_incOrder(ci)
+    local currentKey = config.Default or Enum.KeyCode.Unknown
+    local listening = false
+
+    local holder = Instance.new("Frame")
+    holder.Name = config.Name or "Keybind"
+    holder.BackgroundColor3 = Theme.Glass
+    holder.BackgroundTransparency = Theme.Transparency
+    holder.Size = UDim2.new(1, 0, 0, 32)
+    holder.LayoutOrder = order
+    holder.Parent = col
+    applyGlass(holder)
+
+    local label = Instance.new("TextLabel")
+    label.Text = config.Text or "Keybind"
+    label.Font = Theme.Font
+    label.TextSize = 13
+    label.TextColor3 = Theme.Text
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.new(1, -80, 1, 0)
+    label.Position = UDim2.new(0, 10, 0, 0)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = holder
+
+    local keyName = (currentKey ~= Enum.KeyCode.Unknown) and currentKey.Name or "..."
+    local keyBtn = Instance.new("TextButton")
+    keyBtn.Name = "KeyBtn"
+    keyBtn.Text = keyName
+    keyBtn.Font = Theme.Font
+    keyBtn.TextSize = 11
+    keyBtn.TextColor3 = Theme.Text
+    keyBtn.BackgroundColor3 = Theme.TabInactive
+    keyBtn.BackgroundTransparency = 0.3
+    keyBtn.Size = UDim2.new(0, 60, 0, 22)
+    keyBtn.Position = UDim2.new(1, -68, 0, 5)
+    keyBtn.AutoButtonColor = false
+    keyBtn.Parent = holder
+    Instance.new("UICorner", keyBtn).CornerRadius = UDim.new(0, 5)
+    local keyStroke = Instance.new("UIStroke")
+    keyStroke.Color = Theme.Border
+    keyStroke.Transparency = Theme.BorderTransp
+    keyStroke.Thickness = 1
+    keyStroke.Parent = keyBtn
+
+    keyBtn.MouseButton1Click:Connect(function()
+        if listening then return end
+        listening = true
+        keyBtn.Text = "..."
+        tween(keyStroke, {Color = Theme.Accent}, 0.15)
+        tween(keyBtn, {BackgroundColor3 = Theme.GlassHover}, 0.15)
+    end)
+
+    UserInputService.InputBegan:Connect(function(input, processed)
+        if not listening then
+            -- Fire callback when key is pressed
+            if currentKey ~= Enum.KeyCode.Unknown and input.KeyCode == currentKey and not processed then
+                if config.Callback then config.Callback(currentKey) end
+            end
+            return
+        end
+        if input.UserInputType == Enum.UserInputType.Keyboard then
+            if input.KeyCode == Enum.KeyCode.Escape then
+                -- Cancel / unbind
+                currentKey = Enum.KeyCode.Unknown
+                keyBtn.Text = "None"
+            else
+                currentKey = input.KeyCode
+                keyBtn.Text = currentKey.Name
+            end
+            listening = false
+            tween(keyStroke, {Color = Theme.Border}, 0.15)
+            tween(keyBtn, {BackgroundColor3 = Theme.TabInactive}, 0.15)
+            if config.OnChanged then config.OnChanged(currentKey) end
+        end
+    end)
+
+    return {
+        Set = function(_, key)
+            currentKey = key
+            keyBtn.Text = (key ~= Enum.KeyCode.Unknown) and key.Name or "None"
+        end,
+        Get = function() return currentKey end,
+    }
+end
+
+-- ═══════════════════════════════════════════════════
 --  KEYBIND
 -- ═══════════════════════════════════════════════════
 function Library:SetKeybind(keyCode)
@@ -1299,41 +1615,164 @@ function Library:SetKeybind(keyCode)
 end
 
 -- ═══════════════════════════════════════════════════
---  NOTIFICATION
+--  NOTIFICATION (stacking duplicates)
 -- ═══════════════════════════════════════════════════
 function Library:Notify(config)
     config = config or {}
     local duration = config.Duration or 3
+    local msg = config.Text or "Notification"
+
+    -- Init notification tracking
+    if not self._notifications then self._notifications = {} end
+    if not self._notifStack then self._notifStack = {} end
+
+    -- Check for duplicate: if same message exists, increment counter
+    for _, data in ipairs(self._notifStack) do
+        if data.msg == msg and data.frame and data.frame.Parent then
+            data.count = data.count + 1
+            local countLabel = data.frame:FindFirstChild("Count")
+            if countLabel then
+                countLabel.Text = "x" .. data.count
+                countLabel.Visible = true
+            end
+            -- Reset timer
+            data.expiry = tick() + duration
+            return
+        end
+    end
+
+    -- Calculate position based on existing notifications
+    local index = #self._notifications
+    local yOffset = -10 - index * 56
 
     local notif = Instance.new("Frame")
     notif.Name = "Notification"
     notif.BackgroundColor3 = Theme.Glass
     notif.BackgroundTransparency = Theme.Transparency
-    notif.Size = UDim2.new(0, 240, 0, 50)
-    notif.Position = UDim2.new(1, 10, 1, -60)
+    notif.Size = UDim2.new(0, 240, 0, 46)
+    notif.Position = UDim2.new(1, 10, 1, yOffset)
     notif.AnchorPoint = Vector2.new(1, 1)
     notif.Parent = self.ScreenGui
     applyGlass(notif)
     addShadow(notif)
 
     local text = Instance.new("TextLabel")
-    text.Text = config.Text or "Notification"
+    text.Text = msg
     text.Font = Theme.Font
     text.TextSize = 13
     text.TextColor3 = Theme.Text
     text.BackgroundTransparency = 1
-    text.Size = UDim2.new(1, -20, 1, 0)
+    text.Size = UDim2.new(1, -50, 1, 0)
     text.Position = UDim2.new(0, 10, 0, 0)
     text.TextXAlignment = Enum.TextXAlignment.Left
     text.TextWrapped = true
     text.Parent = notif
 
-    tween(notif, {Position = UDim2.new(1, -16, 1, -60)}, 0.3)
-    task.delay(duration, function()
-        tween(notif, {Position = UDim2.new(1, 10, 1, -60)}, 0.3)
+    local countLabel = Instance.new("TextLabel")
+    countLabel.Name = "Count"
+    countLabel.Text = "x1"
+    countLabel.Font = Theme.FontBold
+    countLabel.TextSize = 11
+    countLabel.TextColor3 = Theme.Accent
+    countLabel.BackgroundTransparency = 1
+    countLabel.Size = UDim2.new(0, 30, 1, 0)
+    countLabel.Position = UDim2.new(1, -36, 0, 0)
+    countLabel.TextXAlignment = Enum.TextXAlignment.Right
+    countLabel.Visible = false
+    countLabel.Parent = notif
+
+    local stackData = {msg = msg, frame = notif, count = 1, expiry = tick() + duration}
+    table.insert(self._notifStack, stackData)
+    table.insert(self._notifications, notif)
+
+    -- Slide in
+    tween(notif, {Position = UDim2.new(1, -16, 1, yOffset)}, 0.3)
+
+    local libSelf = self
+    local function removeNotif()
+        -- Find and remove from tracking
+        for i, n in ipairs(libSelf._notifications) do
+            if n == notif then
+                table.remove(libSelf._notifications, i)
+                break
+            end
+        end
+        for i, data in ipairs(libSelf._notifStack) do
+            if data.frame == notif then
+                table.remove(libSelf._notifStack, i)
+                break
+            end
+        end
+        -- Slide out
+        local curPos = notif.Position
+        tween(notif, {Position = UDim2.new(1, 10, curPos.Y.Scale, curPos.Y.Offset)}, 0.3)
         task.wait(0.35)
         notif:Destroy()
+        -- Reposition remaining notifications
+        for i, n in ipairs(libSelf._notifications) do
+            local newY = -10 - (i - 1) * 56
+            tween(n, {Position = UDim2.new(1, -16, 1, newY)}, 0.25)
+        end
+    end
+
+    -- Auto-remove with timer check (supports reset from stacking)
+    task.spawn(function()
+        while stackData.frame and stackData.frame.Parent do
+            if tick() >= stackData.expiry then
+                removeNotif()
+                return
+            end
+            task.wait(0.5)
+        end
     end)
+end
+
+-- ═══════════════════════════════════════════════════
+--  WATERMARK
+-- ═══════════════════════════════════════════════════
+function Library:SetWatermark(config)
+    config = config or {}
+    local text = config.Text or "Glass HUD"
+
+    if self._watermark then self._watermark:Destroy() end
+
+    local wm = Instance.new("Frame")
+    wm.Name = "Watermark"
+    wm.BackgroundColor3 = Theme.Glass
+    wm.BackgroundTransparency = 0.15
+    wm.Size = UDim2.new(0, 0, 0, 26)
+    wm.AutomaticSize = Enum.AutomaticSize.X
+    wm.Position = UDim2.new(0, 16, 0, 14)
+    wm.Parent = self.ScreenGui
+    applySmallCorner(wm)
+    local wmStroke = Instance.new("UIStroke")
+    wmStroke.Color = Theme.Border
+    wmStroke.Transparency = Theme.BorderTransp
+    wmStroke.Thickness = 1
+    wmStroke.Parent = wm
+
+    local wmPad = Instance.new("UIPadding")
+    wmPad.PaddingLeft = UDim.new(0, 10)
+    wmPad.PaddingRight = UDim.new(0, 10)
+    wmPad.Parent = wm
+
+    local wmLabel = Instance.new("TextLabel")
+    wmLabel.Name = "WmText"
+    wmLabel.Text = text
+    wmLabel.Font = Theme.Font
+    wmLabel.TextSize = 12
+    wmLabel.TextColor3 = Theme.SubText
+    wmLabel.BackgroundTransparency = 1
+    wmLabel.Size = UDim2.new(0, 0, 1, 0)
+    wmLabel.AutomaticSize = Enum.AutomaticSize.X
+    wmLabel.Parent = wm
+
+    self._watermark = wm
+
+    return {
+        SetText = function(_, t) wmLabel.Text = t end,
+        Destroy = function() wm:Destroy() end,
+    }
 end
 
 -- ═══════════════════════════════════════════════════
