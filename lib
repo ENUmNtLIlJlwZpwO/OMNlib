@@ -90,8 +90,8 @@ function Library.new(title)
     self.Main.Name = "Main"
     self.Main.BackgroundColor3 = Theme.Background
     self.Main.BackgroundTransparency = Theme.Transparency
-    self.Main.Size = UDim2.new(0, 320, 0, 0)
-    self.Main.Position = UDim2.new(0.5, -160, 0.5, 0)
+    self.Main.Size = UDim2.new(0, 560, 0, 0)
+    self.Main.Position = UDim2.new(0.5, -280, 0.5, 0)
     self.Main.AnchorPoint = Vector2.new(0, 0.5)
     self.Main.ClipsDescendants = true
     self.Main.Parent = self.ScreenGui
@@ -146,7 +146,7 @@ function Library.new(title)
     closeBtn.Parent = titleBar
 
     closeBtn.MouseButton1Click:Connect(function()
-        tween(self.Main, {Size = UDim2.new(0, 320, 0, 0)}, 0.35)
+        tween(self.Main, {Size = UDim2.new(0, 560, 0, 0)}, 0.35)
         task.wait(0.35)
         self.ScreenGui:Destroy()
     end)
@@ -179,7 +179,7 @@ function Library.new(title)
             self._minimized = false
         else
             self._expandedSize = self.Main.Size
-            tween(self.Main, {Size = UDim2.new(0, 320, 0, 38)}, 0.3)
+            tween(self.Main, {Size = UDim2.new(0, 560, 0, 38)}, 0.3)
             self._minimized = true
         end
     end)
@@ -253,7 +253,7 @@ function Library.new(title)
     -- Open animation
     task.defer(function()
         task.wait(0.05)
-        tween(self.Main, {Size = UDim2.new(0, 320, 0, 400)}, 0.4)
+        tween(self.Main, {Size = UDim2.new(0, 560, 0, 280)}, 0.4)
     end)
 
     return self
