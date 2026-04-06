@@ -1684,8 +1684,36 @@ function Library:AddSettings()
         Text = "UI Accent",
         Default = Theme.Accent,
         Callback = function(c)
-            -- Update accent color on accent bars, slider fills, etc.
             Theme.Accent = c
+            Theme.ToggleOn = c
+            -- Update all existing toggle checkboxes
+            for _, catData in pairs(libSelf._categories) do
+                for _, col in ipairs(catData.cols) do
+                    for _, child in ipairs(col:GetChildren()) do
+                        local checkBox = child:FindFirstChild("CheckBox")
+                        if checkBox then
+                            local checkLabel = checkBox:FindFirstChild("Check")
+                            if checkLabel and checkLabel.TextTransparency < 0.5 then
+                                checkBox.BackgroundColor3 = c
+                                local stroke = checkBox:FindFirstChildOfClass("UIStroke")
+                                if stroke then stroke.Color = c end
+                            end
+                        end
+                    end
+                end
+            end
+        end,
+    })
+
+    -- Col 3 — Watermark toggle
+    Settings:AddToggle({
+        Column = 3,
+        Text = "Watermark",
+        Default = libSelf._watermark ~= nil,
+        Callback = function(state)
+            if libSelf._watermark then
+                libSelf._watermark.Visible = state
+            end
         end,
     })
 
