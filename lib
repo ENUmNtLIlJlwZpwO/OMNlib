@@ -326,7 +326,6 @@ end
 -- ═══════════════════════════════════════════════════
 function Library:AddCategory(name, icon)
     self._tabOrder = self._tabOrder + 1
-    local displayText = icon and (icon .. "  " .. name) or name
 
     -- Page frame (holds 3 columns, hidden by default)
     local page = Instance.new("Frame")
@@ -345,7 +344,7 @@ function Library:AddCategory(name, icon)
     -- Tab button (horizontal bar)
     local tabBtn = Instance.new("TextButton")
     tabBtn.Name = "Tab_" .. name
-    tabBtn.Text = displayText
+    tabBtn.Text = ""
     tabBtn.Font = Theme.Font
     tabBtn.TextSize = 13
     tabBtn.TextColor3 = Theme.SubText
@@ -359,9 +358,41 @@ function Library:AddCategory(name, icon)
     applySmallCorner(tabBtn)
 
     local btnPad = Instance.new("UIPadding")
-    btnPad.PaddingLeft = UDim.new(0, 12)
-    btnPad.PaddingRight = UDim.new(0, 12)
+    btnPad.PaddingLeft = UDim.new(0, 8)
+    btnPad.PaddingRight = UDim.new(0, 10)
     btnPad.Parent = tabBtn
+
+    local tabLayout = Instance.new("UIListLayout")
+    tabLayout.FillDirection = Enum.FillDirection.Horizontal
+    tabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    tabLayout.Padding = UDim.new(0, 6)
+    tabLayout.Parent = tabBtn
+
+    if icon then
+        local tabIcon = Instance.new("ImageLabel")
+        tabIcon.Name = "Icon"
+        tabIcon.BackgroundTransparency = 1
+        tabIcon.Image = icon
+        tabIcon.ImageColor3 = Theme.SubText
+        tabIcon.Size = UDim2.new(0, 14, 0, 14)
+        tabIcon.LayoutOrder = 1
+        tabIcon.Parent = tabBtn
+        -- Store ref for tween
+        tabBtn:SetAttribute("HasIcon", true)
+    end
+
+    local tabText = Instance.new("TextLabel")
+    tabText.Name = "TabLabel"
+    tabText.Text = name
+    tabText.Font = Theme.Font
+    tabText.TextSize = 13
+    tabText.TextColor3 = Theme.SubText
+    tabText.BackgroundTransparency = 1
+    tabText.Size = UDim2.new(0, 0, 1, 0)
+    tabText.AutomaticSize = Enum.AutomaticSize.X
+    tabText.LayoutOrder = 2
+    tabText.Parent = tabBtn
 
     -- Store
     self._categories[name] = {
@@ -375,32 +406,43 @@ function Library:AddCategory(name, icon)
     -- Switch logic
     local libSelf = self
     local function switchTo()
-        for _, cat in pairs(libSelf._categories) do
+        for catName, cat in pairs(libSelf._categories) do
             cat.page.Visible = false
             tween(cat.tabBtn, {
                 BackgroundColor3 = Theme.TabInactive,
                 BackgroundTransparency = 0.3,
-                TextColor3 = Theme.SubText
             }, 0.2)
+            local lbl = cat.tabBtn:FindFirstChild("TabLabel")
+            if lbl then tween(lbl, {TextColor3 = Theme.SubText}, 0.2) end
+            local ico = cat.tabBtn:FindFirstChild("Icon")
+            if ico then tween(ico, {ImageColor3 = Theme.SubText}, 0.2) end
         end
         page.Visible = true
         tween(tabBtn, {
             BackgroundColor3 = Theme.TabActive,
             BackgroundTransparency = 0.1,
-            TextColor3 = Theme.Text
         }, 0.2)
+        tween(tabText, {TextColor3 = Theme.Text}, 0.2)
+        local myIcon = tabBtn:FindFirstChild("Icon")
+        if myIcon then tween(myIcon, {ImageColor3 = Theme.Text}, 0.2) end
         libSelf._activeCategory = name
     end
 
     tabBtn.MouseButton1Click:Connect(switchTo)
     tabBtn.MouseEnter:Connect(function()
         if libSelf._activeCategory ~= name then
-            tween(tabBtn, {BackgroundTransparency = 0.1, TextColor3 = Theme.Text}, 0.15)
+            tween(tabBtn, {BackgroundTransparency = 0.1}, 0.15)
+            tween(tabText, {TextColor3 = Theme.Text}, 0.15)
+            local ico = tabBtn:FindFirstChild("Icon")
+            if ico then tween(ico, {ImageColor3 = Theme.Text}, 0.15) end
         end
     end)
     tabBtn.MouseLeave:Connect(function()
         if libSelf._activeCategory ~= name then
-            tween(tabBtn, {BackgroundTransparency = 0.3, TextColor3 = Theme.SubText}, 0.15)
+            tween(tabBtn, {BackgroundTransparency = 0.3}, 0.15)
+            tween(tabText, {TextColor3 = Theme.SubText}, 0.15)
+            local ico = tabBtn:FindFirstChild("Icon")
+            if ico then tween(ico, {ImageColor3 = Theme.SubText}, 0.15) end
         end
     end)
 
