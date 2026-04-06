@@ -841,7 +841,7 @@ function Category:AddDropdown(config)
     local optPad = Instance.new("UIPadding")
     optPad.PaddingLeft = UDim.new(0, 6)
     optPad.PaddingRight = UDim.new(0, 6)
-    optPad.PaddingTop = UDim.new(0, 4)
+    optPad.PaddingTop = UDim.new(0, 8)
     optPad.PaddingBottom = UDim.new(0, 4)
     optPad.Parent = optContainer
 
@@ -921,7 +921,7 @@ function Category:AddDropdown(config)
             optContainer.Visible = true
             selectedLabel.Text = selected .. "  ▴"
             tween(pillStroke, {Color = Theme.Accent}, 0.15)
-            local totalH = 32 + 8 + #options * 26
+            local totalH = 32 + 12 + #options * 26
             tween(holder, {Size = UDim2.new(1, 0, 0, totalH)}, 0.2)
         end
     end)
