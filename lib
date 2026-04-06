@@ -921,7 +921,7 @@ function Category:AddDropdown(config)
             optContainer.Visible = true
             selectedLabel.Text = selected .. "  ▴"
             tween(pillStroke, {Color = Theme.Accent}, 0.15)
-            local totalH = 42 + 10 + #options * 26
+            local totalH = 42 + 4 + #options * 26
             tween(holder, {Size = UDim2.new(1, 0, 0, totalH)}, 0.2)
         end
     end)
