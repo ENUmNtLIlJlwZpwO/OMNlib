@@ -17,19 +17,19 @@ local Players = game:GetService("Players")
 --  THEME
 -- ═══════════════════════════════════════════════════
 local Theme = {
-    Background      = Color3.fromRGB(18, 18, 24),
-    Glass           = Color3.fromRGB(30, 30, 42),
-    GlassHover      = Color3.fromRGB(40, 40, 55),
-    Accent          = Color3.fromRGB(100, 120, 255),
-    AccentHover     = Color3.fromRGB(130, 145, 255),
-    Text            = Color3.fromRGB(230, 230, 240),
-    SubText         = Color3.fromRGB(150, 150, 170),
-    Border          = Color3.fromRGB(60, 60, 80),
-    TabBg           = Color3.fromRGB(24, 24, 32),
-    TabActive       = Color3.fromRGB(100, 120, 255),
-    TabInactive     = Color3.fromRGB(38, 38, 52),
-    ToggleOn        = Color3.fromRGB(100, 220, 140),
-    ToggleOff       = Color3.fromRGB(80, 80, 100),
+    Background      = Color3.fromRGB(20, 20, 22),
+    Glass           = Color3.fromRGB(32, 32, 36),
+    GlassHover      = Color3.fromRGB(48, 48, 54),
+    Accent          = Color3.fromRGB(155, 155, 165),
+    AccentHover     = Color3.fromRGB(180, 180, 190),
+    Text            = Color3.fromRGB(220, 220, 225),
+    SubText         = Color3.fromRGB(120, 120, 130),
+    Border          = Color3.fromRGB(55, 55, 60),
+    TabBg           = Color3.fromRGB(25, 25, 28),
+    TabActive       = Color3.fromRGB(70, 70, 78),
+    TabInactive     = Color3.fromRGB(36, 36, 40),
+    ToggleOn        = Color3.fromRGB(175, 175, 185),
+    ToggleOff       = Color3.fromRGB(50, 50, 55),
     Shadow          = Color3.fromRGB(0, 0, 0),
 
     Font            = Enum.Font.GothamMedium,
@@ -499,32 +499,43 @@ function Category:AddToggle(config)
     label.TextSize = 13
     label.TextColor3 = Theme.Text
     label.BackgroundTransparency = 1
-    label.Size = UDim2.new(1, -54, 1, 0)
+    label.Size = UDim2.new(1, -40, 1, 0)
     label.Position = UDim2.new(0, 10, 0, 0)
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.TextTruncate = Enum.TextTruncate.AtEnd
     label.Parent = holder
 
-    local track = Instance.new("Frame")
-    track.Name = "Track"
-    track.BackgroundColor3 = state and Theme.ToggleOn or Theme.ToggleOff
-    track.Size = UDim2.new(0, 32, 0, 16)
-    track.Position = UDim2.new(1, -42, 0.5, -8)
-    track.Parent = holder
-    Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
+    -- Checkbox-style indicator
+    local box = Instance.new("Frame")
+    box.Name = "CheckBox"
+    box.BackgroundColor3 = state and Theme.ToggleOn or Theme.ToggleOff
+    box.Size = UDim2.new(0, 18, 0, 18)
+    box.Position = UDim2.new(1, -28, 0.5, -9)
+    box.Parent = holder
+    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4)
 
-    local knob = Instance.new("Frame")
-    knob.Name = "Knob"
-    knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    knob.Size = UDim2.new(0, 12, 0, 12)
-    knob.Position = state and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)
-    knob.Parent = track
-    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+    local boxStroke = Instance.new("UIStroke")
+    boxStroke.Color = state and Theme.ToggleOn or Theme.Border
+    boxStroke.Transparency = state and 0.3 or Theme.BorderTransp
+    boxStroke.Thickness = 1
+    boxStroke.Parent = box
+
+    local check = Instance.new("TextLabel")
+    check.Name = "Check"
+    check.Text = "✓"
+    check.Font = Theme.FontBold
+    check.TextSize = 14
+    check.TextColor3 = Theme.Background
+    check.BackgroundTransparency = 1
+    check.Size = UDim2.new(1, 0, 1, 0)
+    check.TextTransparency = state and 0 or 1
+    check.Parent = box
 
     local function updateToggle()
         state = not state
-        tween(track, {BackgroundColor3 = state and Theme.ToggleOn or Theme.ToggleOff}, 0.2)
-        tween(knob, {Position = state and UDim2.new(1, -14, 0.5, -6) or UDim2.new(0, 2, 0.5, -6)}, 0.2)
+        tween(box, {BackgroundColor3 = state and Theme.ToggleOn or Theme.ToggleOff}, 0.2)
+        tween(boxStroke, {Color = state and Theme.ToggleOn or Theme.Border, Transparency = state and 0.3 or Theme.BorderTransp}, 0.2)
+        tween(check, {TextTransparency = state and 0 or 1}, 0.2)
         if config.Callback then config.Callback(state) end
     end
 
