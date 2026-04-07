@@ -2057,6 +2057,10 @@ function Library:_refreshAccent(c)
                             fill.BackgroundColor3 = c
                         end
                     end
+                    local ddBar = child:FindFirstChild("AccentBar")
+                    if ddBar then
+                        ddBar.BackgroundColor3 = c
+                    end
                     if child:IsA("Frame") and child:FindFirstChild("GBTitle") then
                         updateChildren(child)
                     end
@@ -2160,11 +2164,14 @@ function Library:AddSettings()
                 Theme.ToggleOn = Theme.Accent
                 Theme.Border = Color3.fromRGB(unpack(t.border))
                 tween(libSelf.Main, {BackgroundColor3 = Theme.Background}, 0.3)
+                if libSelf._watermark then
+                    tween(libSelf._watermark, {BackgroundColor3 = Theme.Background}, 0.3)
+                end
                 libSelf:_refreshAccent(Theme.Accent)
                 libSelf:_refreshTextColor(Color3.fromRGB(unpack(t.text)))
                 libSelf:_updateCursorAccent()
-                if libSelf._wmAccentBar then
-                    libSelf._wmAccentBar.BackgroundColor3 = Theme.Accent
+                if libSelf._wmAccentStroke then
+                    libSelf._wmAccentStroke.Color = Theme.Accent
                 end
                 if bgPicker then bgPicker:Set(Theme.Background) end
                 if textPicker then textPicker:Set(Theme.Text) end
@@ -2194,8 +2201,8 @@ function Library:AddSettings()
             Theme.Accent = c
             Theme.ToggleOn = c
             libSelf:_updateCursorAccent()
-            if libSelf._wmAccentBar then
-                libSelf._wmAccentBar.BackgroundColor3 = c
+            if libSelf._wmAccentStroke then
+                libSelf._wmAccentStroke.Color = c
             end
             libSelf:_refreshAccent(c)
         end,
@@ -2207,6 +2214,9 @@ function Library:AddSettings()
         Callback = function(c)
             Theme.Background = c
             tween(libSelf.Main, {BackgroundColor3 = c}, 0.2)
+            if libSelf._watermark then
+                tween(libSelf._watermark, {BackgroundColor3 = c}, 0.2)
+            end
         end,
     })
 
@@ -2246,8 +2256,8 @@ function Library:AddSettings()
             if libSelf._watermark then
                 libSelf._watermark.Visible = state
             end
-            if libSelf._wmAccentBar then
-                libSelf._wmAccentBar.Visible = state
+            if libSelf._wmAccentStroke then
+                libSelf._wmAccentStroke.Transparency = state and 0.3 or 1
             end
         end,
     })
@@ -2391,7 +2401,7 @@ function Library:SetWatermark(config)
 
     local wm = Instance.new("Frame")
     wm.Name = "Watermark"
-    wm.BackgroundColor3 = Theme.Glass
+    wm.BackgroundColor3 = Theme.Background
     wm.BackgroundTransparency = 0.15
     wm.Size = UDim2.new(0, 0, 0, 34)
     wm.AutomaticSize = Enum.AutomaticSize.X
@@ -2400,10 +2410,11 @@ function Library:SetWatermark(config)
     wm.Parent = self.ScreenGui
     applySmallCorner(wm)
     local wmStroke = Instance.new("UIStroke")
-    wmStroke.Color = Theme.Border
-    wmStroke.Transparency = Theme.BorderTransp
-    wmStroke.Thickness = 1
+    wmStroke.Color = Theme.Accent
+    wmStroke.Transparency = 0.3
+    wmStroke.Thickness = 1.5
     wmStroke.Parent = wm
+    self._wmAccentStroke = wmStroke
 
     local wmPad = Instance.new("UIPadding")
     wmPad.PaddingLeft = UDim.new(0, 10)
@@ -2421,28 +2432,6 @@ function Library:SetWatermark(config)
     wmLabel.Size = UDim2.new(0, 0, 1, -2)
     wmLabel.AutomaticSize = Enum.AutomaticSize.X
     wmLabel.Parent = wm
-
-    -- Accent bar on right (outside padding, re-positioned each update)
-    local accentBar = Instance.new("Frame")
-    accentBar.Name = "AccentBar"
-    accentBar.BackgroundColor3 = Theme.Accent
-    accentBar.Size = UDim2.new(0, 3, 0, 0)
-    accentBar.AnchorPoint = Vector2.new(0, 0)
-    accentBar.BorderSizePixel = 0
-    accentBar.ZIndex = 2
-    accentBar.Parent = self.ScreenGui
-    Instance.new("UICorner", accentBar).CornerRadius = UDim.new(1, 0)
-    self._wmAccentBar = accentBar
-
-    local function repositionAccentBar()
-        if not wm.Parent then return end
-        local absPos = wm.AbsolutePosition
-        local absSize = wm.AbsoluteSize
-        accentBar.Position = UDim2.new(0, absPos.X + 3, 0, absPos.Y + 5)
-        accentBar.Size = UDim2.new(0, 3, 0, absSize.Y - 10)
-        accentBar.Visible = wm.Visible
-    end
-    self._wmBarRepos = repositionAccentBar
 
     self._watermark = wm
     self._wmLabel = wmLabel
@@ -2465,7 +2454,6 @@ function Library:SetWatermark(config)
             if self._watermark and self._watermark.Parent and self._watermark.Visible then
                 self:_updateWatermarkText()
             end
-            if self._wmBarRepos then self._wmBarRepos() end
         end)
     end
 
