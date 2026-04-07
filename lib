@@ -1876,6 +1876,76 @@ local CursorStyles = {
         s.Color = Theme.Border; s.Transparency = 0.2; s.Thickness = 1; s.Parent = f
         return f
     end,
+    Dot = function(parent)
+        local f = Instance.new("Frame")
+        f.Name = "CustomCursor"
+        f.BackgroundColor3 = Theme.Accent
+        f.Size = UDim2.new(0, 6, 0, 6)
+        f.AnchorPoint = Vector2.new(0.5, 0.5)
+        f.ZIndex = 999
+        f.Parent = parent
+        Instance.new("UICorner", f).CornerRadius = UDim.new(1, 0)
+        return f
+    end,
+    Plus = function(parent)
+        local f = Instance.new("Frame")
+        f.Name = "CustomCursor"
+        f.BackgroundTransparency = 1
+        f.Size = UDim2.new(0, 20, 0, 20)
+        f.AnchorPoint = Vector2.new(0.5, 0.5)
+        f.ZIndex = 999
+        f.Parent = parent
+        local h = Instance.new("Frame")
+        h.Name = "H"; h.BackgroundColor3 = Theme.Accent
+        h.Size = UDim2.new(1, 0, 0, 4); h.AnchorPoint = Vector2.new(0, 0.5)
+        h.Position = UDim2.new(0, 0, 0.5, 0); h.ZIndex = 999; h.Parent = f
+        Instance.new("UICorner", h).CornerRadius = UDim.new(0, 1)
+        local v = Instance.new("Frame")
+        v.Name = "V"; v.BackgroundColor3 = Theme.Accent
+        v.Size = UDim2.new(0, 4, 1, 0); v.AnchorPoint = Vector2.new(0.5, 0)
+        v.Position = UDim2.new(0.5, 0, 0, 0); v.ZIndex = 999; v.Parent = f
+        Instance.new("UICorner", v).CornerRadius = UDim.new(0, 1)
+        return f
+    end,
+    Target = function(parent)
+        local f = Instance.new("Frame")
+        f.Name = "CustomCursor"
+        f.BackgroundTransparency = 1
+        f.Size = UDim2.new(0, 20, 0, 20)
+        f.AnchorPoint = Vector2.new(0.5, 0.5)
+        f.ZIndex = 999
+        f.Parent = parent
+        Instance.new("UICorner", f).CornerRadius = UDim.new(1, 0)
+        local s = Instance.new("UIStroke")
+        s.Color = Theme.Accent; s.Thickness = 2; s.Parent = f
+        local h = Instance.new("Frame")
+        h.Name = "H"; h.BackgroundColor3 = Theme.Accent
+        h.Size = UDim2.new(0.4, 0, 0, 2); h.AnchorPoint = Vector2.new(0.5, 0.5)
+        h.Position = UDim2.new(0.5, 0, 0.5, 0); h.ZIndex = 999; h.Parent = f
+        local v = Instance.new("Frame")
+        v.Name = "V"; v.BackgroundColor3 = Theme.Accent
+        v.Size = UDim2.new(0, 2, 0.4, 0); v.AnchorPoint = Vector2.new(0.5, 0.5)
+        v.Position = UDim2.new(0.5, 0, 0.5, 0); v.ZIndex = 999; v.Parent = f
+        return f
+    end,
+    Square = function(parent)
+        local f = Instance.new("Frame")
+        f.Name = "CustomCursor"
+        f.BackgroundTransparency = 1
+        f.Size = UDim2.new(0, 12, 0, 12)
+        f.AnchorPoint = Vector2.new(0.5, 0.5)
+        f.ZIndex = 999
+        f.Parent = parent
+        Instance.new("UICorner", f).CornerRadius = UDim.new(0, 2)
+        local s = Instance.new("UIStroke")
+        s.Color = Theme.Accent; s.Thickness = 2; s.Parent = f
+        local d = Instance.new("Frame")
+        d.Name = "Dot"; d.BackgroundColor3 = Theme.Accent
+        d.Size = UDim2.new(0,4,0,4); d.AnchorPoint = Vector2.new(0.5,0.5)
+        d.Position = UDim2.new(0.5,0,0.5,0); d.ZIndex = 1000; d.Parent = f
+        Instance.new("UICorner", d).CornerRadius = UDim.new(1, 0)
+        return f
+    end,
 }
 
 function Library:SetCustomCursor(style)
@@ -1912,20 +1982,32 @@ end
 function Library:_updateCursorAccent()
     if not self._cursor then return end
     local style = self._cursorStyle
-    if style == "Circle" then
+    if style == "Circle" or style == "Dot" then
         self._cursor.BackgroundColor3 = Theme.Accent
     elseif style == "Ring" then
         local s = self._cursor:FindFirstChildOfClass("UIStroke")
         if s then s.Color = Theme.Accent end
         local d = self._cursor:FindFirstChild("Dot")
         if d then d.BackgroundColor3 = Theme.Accent end
-    elseif style == "Cross" then
+    elseif style == "Cross" or style == "Plus" then
         local h = self._cursor:FindFirstChild("H")
         local v = self._cursor:FindFirstChild("V")
         if h then h.BackgroundColor3 = Theme.Accent end
         if v then v.BackgroundColor3 = Theme.Accent end
     elseif style == "Diamond" then
         self._cursor.BackgroundColor3 = Theme.Accent
+    elseif style == "Target" then
+        local s = self._cursor:FindFirstChildOfClass("UIStroke")
+        if s then s.Color = Theme.Accent end
+        local h = self._cursor:FindFirstChild("H")
+        local v = self._cursor:FindFirstChild("V")
+        if h then h.BackgroundColor3 = Theme.Accent end
+        if v then v.BackgroundColor3 = Theme.Accent end
+    elseif style == "Square" then
+        local s = self._cursor:FindFirstChildOfClass("UIStroke")
+        if s then s.Color = Theme.Accent end
+        local d = self._cursor:FindFirstChild("Dot")
+        if d then d.BackgroundColor3 = Theme.Accent end
     end
 end
 
@@ -1960,6 +2042,31 @@ function Library:_refreshAccent(c)
     end
 end
 
+function Library:_refreshTextColor(c)
+    Theme.Text = c
+    Theme.SubText = Color3.fromRGB(
+        math.floor(c.R * 255 * 0.55 + 0.5),
+        math.floor(c.G * 255 * 0.55 + 0.5),
+        math.floor(c.B * 255 * 0.55 + 0.5)
+    )
+    for _, desc in ipairs(self.ScreenGui:GetDescendants()) do
+        if desc:IsA("TextLabel") and desc.Name ~= "Check" and desc.Name ~= "Count" then
+            desc.TextColor3 = c
+        end
+    end
+    for _, tabData in ipairs(self._tabButtons) do
+        local lbl = tabData.btn:FindFirstChild("TabLabel")
+        local ico = tabData.btn:FindFirstChild("Icon")
+        if tabData.name == self._activeCategory then
+            if lbl then lbl.TextColor3 = c end
+            if ico then ico.ImageColor3 = c end
+        else
+            if lbl then lbl.TextColor3 = Theme.SubText end
+            if ico then ico.ImageColor3 = Theme.SubText end
+        end
+    end
+end
+
 -- ═══════════════════════════════════════════════════
 --  SETTINGS CATEGORY (icon-only, far right)
 -- ═══════════════════════════════════════════════════
@@ -1978,6 +2085,7 @@ function Library:AddSettings()
     settingsTabBtn.AutomaticSize = Enum.AutomaticSize.X
 
     local libSelf = self
+    local bgPicker, textPicker
 
     -- Col 1 — General GroupBox
     local GeneralGroup = Settings:AddGroupBox({
@@ -1996,7 +2104,50 @@ function Library:AddSettings()
         end,
     })
 
-    GeneralGroup:AddSlider({
+    -- Col 2 — Theme GroupBox
+    local ThemeGroup = Settings:AddGroupBox({
+        Column = 2,
+        Text = "Theme",
+    })
+
+    ThemeGroup:AddDropdown({
+        Text = "Preset",
+        Options = {"Dark", "Midnight", "Ocean", "Forest", "Cherry", "Amethyst", "Mocha", "Arctic", "Crimson", "Neon"},
+        Default = "Dark",
+        Callback = function(opt)
+            local themes = {
+                Dark      = {bg={20,20,22},  glass={32,32,36},  accent={155,155,165}, text={220,220,225}, subtext={120,120,130}, border={55,55,60}},
+                Midnight  = {bg={12,12,20},  glass={22,22,34},  accent={130,140,180}, text={210,215,230}, subtext={100,110,140}, border={45,45,70}},
+                Ocean     = {bg={8,22,32},   glass={14,34,48},  accent={40,160,200},  text={200,225,235}, subtext={90,140,160},  border={30,65,85}},
+                Forest    = {bg={12,22,14},  glass={22,34,24},  accent={60,170,80},   text={200,230,205}, subtext={95,135,100},  border={40,65,45}},
+                Cherry    = {bg={28,12,16},  glass={42,22,28},  accent={210,60,90},   text={235,210,215}, subtext={145,90,105},  border={75,40,50}},
+                Amethyst  = {bg={20,12,28},  glass={32,22,42},  accent={150,80,210},  text={225,210,235}, subtext={125,95,145},  border={60,40,75}},
+                Mocha     = {bg={26,20,14},  glass={40,32,24},  accent={180,130,70},  text={230,215,200}, subtext={140,120,95},  border={70,55,40}},
+                Arctic    = {bg={18,24,30},  glass={28,36,44},  accent={100,180,220}, text={220,235,245}, subtext={110,140,160}, border={50,65,78}},
+                Crimson   = {bg={24,10,10},  glass={38,18,18},  accent={200,40,40},   text={240,210,210}, subtext={140,90,90},   border={70,35,35}},
+                Neon      = {bg={8,8,16},    glass={16,16,28},  accent={0,255,140},   text={210,240,220}, subtext={100,140,110}, border={30,40,50}},
+            }
+            local t = themes[opt]
+            if t then
+                Theme.Background = Color3.fromRGB(unpack(t.bg))
+                Theme.Glass = Color3.fromRGB(unpack(t.glass))
+                Theme.Accent = Color3.fromRGB(unpack(t.accent))
+                Theme.ToggleOn = Theme.Accent
+                Theme.Border = Color3.fromRGB(unpack(t.border))
+                tween(libSelf.Main, {BackgroundColor3 = Theme.Background}, 0.3)
+                libSelf:_refreshAccent(Theme.Accent)
+                libSelf:_refreshTextColor(Color3.fromRGB(unpack(t.text)))
+                libSelf:_updateCursorAccent()
+                if libSelf._wmAccentBar then
+                    libSelf._wmAccentBar.BackgroundColor3 = Theme.Accent
+                end
+                if bgPicker then bgPicker:Set(Theme.Background) end
+                if textPicker then textPicker:Set(Theme.Text) end
+            end
+        end,
+    })
+
+    ThemeGroup:AddSlider({
         Text = "UI Opacity",
         Min = 0,
         Max = 100,
@@ -2007,56 +2158,7 @@ function Library:AddSettings()
         end,
     })
 
-    -- Col 2 — Theme GroupBox
-    local ThemeGroup = Settings:AddGroupBox({
-        Column = 2,
-        Text = "Theme",
-    })
-
-    ThemeGroup:AddDropdown({
-        Text = "Preset",
-        Options = {"Dark", "Midnight", "Slate", "Charcoal"},
-        Default = "Dark",
-        Callback = function(opt)
-            local themes = {
-                Dark      = {bg={20,20,22}, glass={32,32,36}, accent={155,155,165}, text={220,220,225}, subtext={120,120,130}, border={55,55,60}},
-                Midnight  = {bg={12,12,20}, glass={22,22,34}, accent={130,140,180}, text={210,215,230}, subtext={100,110,140}, border={45,45,70}},
-                Slate     = {bg={28,30,34}, glass={40,42,48}, accent={140,155,170}, text={215,220,225}, subtext={115,125,135}, border={55,60,68}},
-                Charcoal  = {bg={16,16,16}, glass={28,28,28}, accent={170,170,170}, text={220,220,220}, subtext={120,120,120}, border={50,50,50}},
-            }
-            local t = themes[opt]
-            if t then
-                Theme.Background = Color3.fromRGB(unpack(t.bg))
-                Theme.Glass = Color3.fromRGB(unpack(t.glass))
-                Theme.Accent = Color3.fromRGB(unpack(t.accent))
-                Theme.ToggleOn = Theme.Accent
-                Theme.Text = Color3.fromRGB(unpack(t.text))
-                Theme.SubText = Color3.fromRGB(unpack(t.subtext))
-                Theme.Border = Color3.fromRGB(unpack(t.border))
-                tween(libSelf.Main, {BackgroundColor3 = Theme.Background}, 0.3)
-                libSelf:_updateCursorAccent()
-                if libSelf._wmAccentBar then
-                    libSelf._wmAccentBar.BackgroundColor3 = Theme.Accent
-                end
-            end
-        end,
-    })
-
-    ThemeGroup:AddColorPicker({
-        Text = "Accent",
-        Default = Theme.Accent,
-        Callback = function(c)
-            Theme.Accent = c
-            Theme.ToggleOn = c
-            libSelf:_updateCursorAccent()
-            if libSelf._wmAccentBar then
-                libSelf._wmAccentBar.BackgroundColor3 = c
-            end
-            libSelf:_refreshAccent(c)
-        end,
-    })
-
-    ThemeGroup:AddColorPicker({
+    bgPicker = ThemeGroup:AddColorPicker({
         Text = "Background",
         Default = Theme.Background,
         Callback = function(c)
@@ -2065,27 +2167,11 @@ function Library:AddSettings()
         end,
     })
 
-    ThemeGroup:AddColorPicker({
-        Text = "Glass",
-        Default = Theme.Glass,
-        Callback = function(c)
-            Theme.Glass = c
-        end,
-    })
-
-    ThemeGroup:AddColorPicker({
+    textPicker = ThemeGroup:AddColorPicker({
         Text = "Text",
         Default = Theme.Text,
         Callback = function(c)
-            Theme.Text = c
-        end,
-    })
-
-    ThemeGroup:AddColorPicker({
-        Text = "Border",
-        Default = Theme.Border,
-        Callback = function(c)
-            Theme.Border = c
+            libSelf:_refreshTextColor(c)
         end,
     })
 
@@ -2124,7 +2210,7 @@ function Library:AddSettings()
     Settings:AddDropdown({
         Column = 3,
         Text = "Custom Cursor",
-        Options = {"None", "Circle", "Ring", "Cross", "Diamond"},
+        Options = {"None", "Circle", "Ring", "Cross", "Diamond", "Dot", "Plus", "Target", "Square"},
         Default = libSelf._cursorStyle or "None",
         Callback = function(opt)
             libSelf:SetCustomCursor(opt)
