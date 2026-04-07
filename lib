@@ -789,28 +789,6 @@ function Category:AddSlider(config)
     valLabel.ClearTextOnFocus = true
     valLabel.Parent = holder
 
-    local function setVal(v)
-        value = math.clamp(v, min, max)
-        local p = (value - min) / (max - min)
-        fill.Size = UDim2.new(p, 0, 1, 0)
-        knob.Position = UDim2.new(p, -6, 0.5, -6)
-        valLabel.Text = tostring(value)
-        if config.Callback then config.Callback(value) end
-    end
-
-    valLabel.Focused:Connect(function()
-        valLabel.TextColor3 = Theme.Text
-    end)
-    valLabel.FocusLost:Connect(function(enterPressed)
-        valLabel.TextColor3 = Theme.SubText
-        local num = tonumber(valLabel.Text)
-        if num then
-            setVal(math.floor(num + 0.5))
-        else
-            valLabel.Text = tostring(value)
-        end
-    end)
-
     local trackBg = Instance.new("Frame")
     trackBg.Name = "TrackBg"
     trackBg.BackgroundColor3 = Theme.ToggleOff
@@ -835,6 +813,28 @@ function Category:AddSlider(config)
     knob.ZIndex = 3
     knob.Parent = trackBg
     Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+    local function setVal(v)
+        value = math.clamp(v, min, max)
+        local p = (value - min) / (max - min)
+        fill.Size = UDim2.new(p, 0, 1, 0)
+        knob.Position = UDim2.new(p, -6, 0.5, -6)
+        valLabel.Text = tostring(value)
+        if config.Callback then config.Callback(value) end
+    end
+
+    valLabel.Focused:Connect(function()
+        valLabel.TextColor3 = Theme.Text
+    end)
+    valLabel.FocusLost:Connect(function(enterPressed)
+        valLabel.TextColor3 = Theme.SubText
+        local num = tonumber(valLabel.Text)
+        if num then
+            setVal(math.floor(num + 0.5))
+        else
+            valLabel.Text = tostring(value)
+        end
+    end)
 
     local dragging = false
 
@@ -1999,6 +1999,10 @@ function Library:AddSettings()
             Theme.ToggleOn = c
             -- Update cursor accent
             libSelf:_updateCursorAccent()
+            -- Update watermark accent bar
+            if libSelf._wmAccentBar then
+                libSelf._wmAccentBar.BackgroundColor3 = c
+            end
             -- Update all existing toggle checkboxes + slider fills
             for _, catData in pairs(libSelf._categories) do
                 for _, col in ipairs(catData.cols) do
@@ -2013,9 +2017,13 @@ function Library:AddSettings()
                                     if stroke then stroke.Color = c end
                                 end
                             end
-                            local fill = child:FindFirstChild("Fill")
-                            if fill then
-                                fill.BackgroundColor3 = c
+                            -- Search Fill inside TrackBg inside holder
+                            local trackBg = child:FindFirstChild("TrackBg")
+                            if trackBg then
+                                local fill = trackBg:FindFirstChild("Fill")
+                                if fill then
+                                    fill.BackgroundColor3 = c
+                                end
                             end
                             -- Recurse into GroupBoxes
                             if child:IsA("Frame") and child:FindFirstChild("GBTitle") then
@@ -2029,15 +2037,31 @@ function Library:AddSettings()
         end,
     })
 
-    -- Col 3 -- Watermark toggle
-    Settings:AddToggle({
+    -- Col 3 -- Watermark
+    local WmGroup = Settings:AddGroupBox({
         Column = 3,
         Text = "Watermark",
+    })
+
+    WmGroup:AddToggle({
+        Text = "Enabled",
         Default = libSelf._watermark ~= nil,
         Callback = function(state)
             if libSelf._watermark then
                 libSelf._watermark.Visible = state
             end
+        end,
+    })
+
+    local wmItems = {"Name", "FPS", "Time", "Ping", "Version"}
+    local wmDefaults = {"Name", "Version"}
+    WmGroup:AddMultiDropdown({
+        Text = "Content",
+        Options = wmItems,
+        Default = wmDefaults,
+        Callback = function(selected)
+            libSelf._wmContent = selected
+            libSelf:_updateWatermarkText()
         end,
     })
 
@@ -2181,9 +2205,10 @@ function Library:SetWatermark(config)
     wm.Name = "Watermark"
     wm.BackgroundColor3 = Theme.Glass
     wm.BackgroundTransparency = 0.15
-    wm.Size = UDim2.new(0, 0, 0, 26)
+    wm.Size = UDim2.new(0, 0, 0, 30)
     wm.AutomaticSize = Enum.AutomaticSize.X
     wm.Position = UDim2.new(0, 16, 0, 14)
+    wm.ClipsDescendants = true
     wm.Parent = self.ScreenGui
     applySmallCorner(wm)
     local wmStroke = Instance.new("UIStroke")
@@ -2192,9 +2217,21 @@ function Library:SetWatermark(config)
     wmStroke.Thickness = 1
     wmStroke.Parent = wm
 
+    -- Accent bar on top
+    local accentBar = Instance.new("Frame")
+    accentBar.Name = "AccentBar"
+    accentBar.BackgroundColor3 = Theme.Accent
+    accentBar.Size = UDim2.new(1, 0, 0, 2)
+    accentBar.Position = UDim2.new(0, 0, 0, 0)
+    accentBar.BorderSizePixel = 0
+    accentBar.ZIndex = 2
+    accentBar.Parent = wm
+    self._wmAccentBar = accentBar
+
     local wmPad = Instance.new("UIPadding")
     wmPad.PaddingLeft = UDim.new(0, 10)
     wmPad.PaddingRight = UDim.new(0, 10)
+    wmPad.PaddingTop = UDim.new(0, 4)
     wmPad.Parent = wm
 
     local wmLabel = Instance.new("TextLabel")
@@ -2204,11 +2241,26 @@ function Library:SetWatermark(config)
     wmLabel.TextSize = 12
     wmLabel.TextColor3 = Theme.SubText
     wmLabel.BackgroundTransparency = 1
-    wmLabel.Size = UDim2.new(0, 0, 1, 0)
+    wmLabel.Size = UDim2.new(0, 0, 1, -4)
     wmLabel.AutomaticSize = Enum.AutomaticSize.X
     wmLabel.Parent = wm
 
     self._watermark = wm
+    self._wmLabel = wmLabel
+    self._wmContent = config.Content or {"Name", "Version"}
+    self._wmTitle = config.Title or "Glass HUD"
+
+    -- Start watermark updater
+    if not self._wmUpdaterConn then
+        local lastFps = 60
+        self._wmUpdaterConn = RunService.Heartbeat:Connect(function(dt)
+            lastFps = math.floor(1 / dt + 0.5)
+            self._wmFps = lastFps
+            if self._watermark and self._watermark.Parent and self._watermark.Visible then
+                self:_updateWatermarkText()
+            end
+        end)
+    end
 
     -- Drag watermark
     wm.Active = true
@@ -2244,6 +2296,27 @@ function Library:SetWatermark(config)
     }
 end
 
+function Library:_updateWatermarkText()
+    if not self._wmLabel then return end
+    local parts = {}
+    local content = self._wmContent or {"Name", "Version"}
+    for _, item in ipairs(content) do
+        if item == "Name" then
+            table.insert(parts, self._wmTitle or "Glass HUD")
+        elseif item == "FPS" then
+            table.insert(parts, (self._wmFps or 60) .. " FPS")
+        elseif item == "Time" then
+            table.insert(parts, os.date("%H:%M:%S"))
+        elseif item == "Ping" then
+            local ping = math.floor(Players.LocalPlayer:GetNetworkPing() * 1000 + 0.5)
+            table.insert(parts, ping .. "ms")
+        elseif item == "Version" then
+            table.insert(parts, "v1.0")
+        end
+    end
+    self._wmLabel.Text = table.concat(parts, " | ")
+end
+
 -- ═══════════════════════════════════════════════════
 --  DESTROY
 -- ═══════════════════════════════════════════════════
@@ -2251,6 +2324,10 @@ function Library:Destroy()
     if self._cursorConn then
         self._cursorConn:Disconnect()
         self._cursorConn = nil
+    end
+    if self._wmUpdaterConn then
+        self._wmUpdaterConn:Disconnect()
+        self._wmUpdaterConn = nil
     end
     UserInputService.MouseIconEnabled = true
     if self.ScreenGui then
