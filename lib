@@ -46,9 +46,9 @@ local Theme = {
     TitleBarH       = 38,
     TabBarH         = 34,
     Columns         = 3,
-    ColGap          = 8,
-    ColPadX         = 10,
-    ColPadY         = 8,
+    ColGap          = 4,
+    ColPadX         = 5,
+    ColPadY         = 5,
 }
 
 -- ═══════════════════════════════════════════════════
@@ -1803,54 +1803,129 @@ end
 -- ═══════════════════════════════════════════════════
 --  CUSTOM CURSOR
 -- ═══════════════════════════════════════════════════
-function Library:SetCustomCursor(enabled)
-    if enabled then
-        if not self._cursor then
-            local cursor = Instance.new("Frame")
-            cursor.Name = "CustomCursor"
-            cursor.BackgroundColor3 = Theme.Accent
-            cursor.BackgroundTransparency = 0.1
-            cursor.Size = UDim2.new(0, 12, 0, 12)
-            cursor.AnchorPoint = Vector2.new(0.5, 0.5)
-            cursor.ZIndex = 999
-            cursor.Parent = self.ScreenGui
-            Instance.new("UICorner", cursor).CornerRadius = UDim.new(1, 0)
+local CursorStyles = {
+    None = nil,
+    Circle = function(parent)
+        local f = Instance.new("Frame")
+        f.Name = "CustomCursor"
+        f.BackgroundColor3 = Theme.Accent
+        f.BackgroundTransparency = 0.1
+        f.Size = UDim2.new(0, 14, 0, 14)
+        f.AnchorPoint = Vector2.new(0.5, 0.5)
+        f.ZIndex = 999
+        f.Parent = parent
+        Instance.new("UICorner", f).CornerRadius = UDim.new(1, 0)
+        local s = Instance.new("UIStroke")
+        s.Color = Theme.Border; s.Transparency = 0.2; s.Thickness = 1; s.Parent = f
+        local d = Instance.new("Frame")
+        d.Name = "Dot"; d.BackgroundColor3 = Color3.new(1,1,1)
+        d.Size = UDim2.new(0,4,0,4); d.AnchorPoint = Vector2.new(0.5,0.5)
+        d.Position = UDim2.new(0.5,0,0.5,0); d.ZIndex = 1000; d.Parent = f
+        Instance.new("UICorner", d).CornerRadius = UDim.new(1, 0)
+        return f
+    end,
+    Ring = function(parent)
+        local f = Instance.new("Frame")
+        f.Name = "CustomCursor"
+        f.BackgroundTransparency = 1
+        f.Size = UDim2.new(0, 18, 0, 18)
+        f.AnchorPoint = Vector2.new(0.5, 0.5)
+        f.ZIndex = 999
+        f.Parent = parent
+        Instance.new("UICorner", f).CornerRadius = UDim.new(1, 0)
+        local s = Instance.new("UIStroke")
+        s.Color = Theme.Accent; s.Transparency = 0; s.Thickness = 2; s.Parent = f
+        local d = Instance.new("Frame")
+        d.Name = "Dot"; d.BackgroundColor3 = Theme.Accent
+        d.Size = UDim2.new(0,4,0,4); d.AnchorPoint = Vector2.new(0.5,0.5)
+        d.Position = UDim2.new(0.5,0,0.5,0); d.ZIndex = 1000; d.Parent = f
+        Instance.new("UICorner", d).CornerRadius = UDim.new(1, 0)
+        return f
+    end,
+    Cross = function(parent)
+        local f = Instance.new("Frame")
+        f.Name = "CustomCursor"
+        f.BackgroundTransparency = 1
+        f.Size = UDim2.new(0, 16, 0, 16)
+        f.AnchorPoint = Vector2.new(0.5, 0.5)
+        f.ZIndex = 999
+        f.Parent = parent
+        local h = Instance.new("Frame")
+        h.Name = "H"; h.BackgroundColor3 = Theme.Accent
+        h.Size = UDim2.new(1, 0, 0, 2); h.AnchorPoint = Vector2.new(0, 0.5)
+        h.Position = UDim2.new(0, 0, 0.5, 0); h.ZIndex = 999; h.Parent = f
+        local v = Instance.new("Frame")
+        v.Name = "V"; v.BackgroundColor3 = Theme.Accent
+        v.Size = UDim2.new(0, 2, 1, 0); v.AnchorPoint = Vector2.new(0.5, 0)
+        v.Position = UDim2.new(0.5, 0, 0, 0); v.ZIndex = 999; v.Parent = f
+        return f
+    end,
+    Diamond = function(parent)
+        local f = Instance.new("Frame")
+        f.Name = "CustomCursor"
+        f.BackgroundColor3 = Theme.Accent
+        f.BackgroundTransparency = 0.1
+        f.Size = UDim2.new(0, 10, 0, 10)
+        f.AnchorPoint = Vector2.new(0.5, 0.5)
+        f.Rotation = 45
+        f.ZIndex = 999
+        f.Parent = parent
+        Instance.new("UICorner", f).CornerRadius = UDim.new(0, 2)
+        local s = Instance.new("UIStroke")
+        s.Color = Theme.Border; s.Transparency = 0.2; s.Thickness = 1; s.Parent = f
+        return f
+    end,
+}
 
-            local cursorStroke = Instance.new("UIStroke")
-            cursorStroke.Color = Theme.Border
-            cursorStroke.Transparency = 0.2
-            cursorStroke.Thickness = 1
-            cursorStroke.Parent = cursor
+function Library:SetCustomCursor(style)
+    -- Destroy previous cursor
+    if self._cursor then
+        self._cursor:Destroy()
+        self._cursor = nil
+    end
+    if self._cursorConn then
+        self._cursorConn:Disconnect()
+        self._cursorConn = nil
+    end
 
-            local innerDot = Instance.new("Frame")
-            innerDot.Name = "Dot"
-            innerDot.BackgroundColor3 = Color3.new(1, 1, 1)
-            innerDot.Size = UDim2.new(0, 4, 0, 4)
-            innerDot.AnchorPoint = Vector2.new(0.5, 0.5)
-            innerDot.Position = UDim2.new(0.5, 0, 0.5, 0)
-            innerDot.ZIndex = 1000
-            innerDot.Parent = cursor
-            Instance.new("UICorner", innerDot).CornerRadius = UDim.new(1, 0)
+    if style and style ~= "None" and CursorStyles[style] then
+        local cursor = CursorStyles[style](self.ScreenGui)
+        self._cursor = cursor
+        self._cursorStyle = style
 
-            self._cursor = cursor
+        local mouse = Players.LocalPlayer:GetMouse()
+        self._cursorConn = RunService.RenderStepped:Connect(function()
+            if self._cursor and self._cursor.Parent then
+                self._cursor.Position = UDim2.new(0, mouse.X, 0, mouse.Y)
+            end
+        end)
 
-            local mouse = Players.LocalPlayer:GetMouse()
-            self._cursorConn = RunService.RenderStepped:Connect(function()
-                if self._cursor and self._cursor.Parent then
-                    self._cursor.Position = UDim2.new(0, mouse.X, 0, mouse.Y)
-                end
-            end)
-        end
-
-        self._cursor.Visible = true
+        cursor.Visible = true
         UserInputService.MouseIconEnabled = false
     else
-        if self._cursor then
-            self._cursor.Visible = false
-        end
+        self._cursorStyle = "None"
         UserInputService.MouseIconEnabled = true
     end
-    self._customCursorEnabled = enabled or false
+end
+
+function Library:_updateCursorAccent()
+    if not self._cursor then return end
+    local style = self._cursorStyle
+    if style == "Circle" then
+        self._cursor.BackgroundColor3 = Theme.Accent
+    elseif style == "Ring" then
+        local s = self._cursor:FindFirstChildOfClass("UIStroke")
+        if s then s.Color = Theme.Accent end
+        local d = self._cursor:FindFirstChild("Dot")
+        if d then d.BackgroundColor3 = Theme.Accent end
+    elseif style == "Cross" then
+        local h = self._cursor:FindFirstChild("H")
+        local v = self._cursor:FindFirstChild("V")
+        if h then h.BackgroundColor3 = Theme.Accent end
+        if v then v.BackgroundColor3 = Theme.Accent end
+    elseif style == "Diamond" then
+        self._cursor.BackgroundColor3 = Theme.Accent
+    end
 end
 
 -- ═══════════════════════════════════════════════════
@@ -1922,20 +1997,33 @@ function Library:AddSettings()
         Callback = function(c)
             Theme.Accent = c
             Theme.ToggleOn = c
-            -- Update all existing toggle checkboxes
+            -- Update cursor accent
+            libSelf:_updateCursorAccent()
+            -- Update all existing toggle checkboxes + slider fills
             for _, catData in pairs(libSelf._categories) do
                 for _, col in ipairs(catData.cols) do
-                    for _, child in ipairs(col:GetChildren()) do
-                        local checkBox = child:FindFirstChild("CheckBox")
-                        if checkBox then
-                            local checkLabel = checkBox:FindFirstChild("Check")
-                            if checkLabel and checkLabel.TextTransparency < 0.5 then
-                                checkBox.BackgroundColor3 = c
-                                local stroke = checkBox:FindFirstChildOfClass("UIStroke")
-                                if stroke then stroke.Color = c end
+                    local function updateChildren(parent)
+                        for _, child in ipairs(parent:GetChildren()) do
+                            local checkBox = child:FindFirstChild("CheckBox")
+                            if checkBox then
+                                local checkLabel = checkBox:FindFirstChild("Check")
+                                if checkLabel and checkLabel.TextTransparency < 0.5 then
+                                    checkBox.BackgroundColor3 = c
+                                    local stroke = checkBox:FindFirstChildOfClass("UIStroke")
+                                    if stroke then stroke.Color = c end
+                                end
+                            end
+                            local fill = child:FindFirstChild("Fill")
+                            if fill then
+                                fill.BackgroundColor3 = c
+                            end
+                            -- Recurse into GroupBoxes
+                            if child:IsA("Frame") and child:FindFirstChild("GBTitle") then
+                                updateChildren(child)
                             end
                         end
                     end
+                    updateChildren(col)
                 end
             end
         end,
@@ -1953,13 +2041,14 @@ function Library:AddSettings()
         end,
     })
 
-    -- Col 3 -- Custom Cursor toggle
-    Settings:AddToggle({
+    -- Col 3 -- Custom Cursor
+    Settings:AddDropdown({
         Column = 3,
         Text = "Custom Cursor",
-        Default = libSelf._customCursorEnabled or false,
-        Callback = function(state)
-            libSelf:SetCustomCursor(state)
+        Options = {"None", "Circle", "Ring", "Cross", "Diamond"},
+        Default = libSelf._cursorStyle or "None",
+        Callback = function(opt)
+            libSelf:SetCustomCursor(opt)
         end,
     })
 
