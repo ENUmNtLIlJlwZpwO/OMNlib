@@ -1824,10 +1824,24 @@ end
 function Library:SetKeybind(keyCode)
     keyCode = keyCode or Enum.KeyCode.RightShift
     self._toggleKeyCode = keyCode
+    self._toggling = false
+    local W = Theme.WindowWidth
+    local H = Theme.WindowHeight
     UserInputService.InputBegan:Connect(function(input, processed)
         if processed then return end
-        if input.KeyCode == self._toggleKeyCode then
-            self.Main.Visible = not self.Main.Visible
+        if input.KeyCode == self._toggleKeyCode and not self._toggling then
+            self._toggling = true
+            if self.Main.Visible then
+                tween(self.Main, {Size = UDim2.new(0, W, 0, 0)}, 0.3)
+                task.wait(0.3)
+                self.Main.Visible = false
+            else
+                self.Main.Visible = true
+                self.Main.Size = UDim2.new(0, W, 0, 0)
+                tween(self.Main, {Size = UDim2.new(0, W, 0, H)}, 0.3)
+                task.wait(0.3)
+            end
+            self._toggling = false
         end
     end)
 end
