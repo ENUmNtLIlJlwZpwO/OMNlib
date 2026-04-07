@@ -849,18 +849,12 @@ function Category:AddSlider(config)
 
     local knob = Instance.new("Frame")
     knob.Name = "Knob"
-    knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    knob.BackgroundColor3 = Theme.Text
     knob.Size = UDim2.new(0, 12, 0, 12)
     knob.Position = UDim2.new(pct, -6, 0.5, -6)
     knob.ZIndex = 3
     knob.Parent = trackBg
     Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
-    local knobStroke = Instance.new("UIStroke")
-    knobStroke.Name = "KnobStroke"
-    knobStroke.Color = Theme.Border
-    knobStroke.Transparency = 0.3
-    knobStroke.Thickness = 1
-    knobStroke.Parent = knob
 
     local function setVal(v)
         value = math.clamp(v, min, max)
@@ -1705,7 +1699,7 @@ function Category:AddKeybind(config)
     Instance.new("UICorner", keyBtn).CornerRadius = UDim.new(0, 5)
     local keyStroke = Instance.new("UIStroke")
     keyStroke.Color = Theme.Border
-    keyStroke.Transparency = 0.2
+    keyStroke.Transparency = Theme.BorderTransp
     keyStroke.Thickness = 1
     keyStroke.Parent = keyBtn
 
@@ -2152,7 +2146,7 @@ function Library:_refreshGlass()
                             end
                         elseif name == "SelectedPill" then
                             child.BackgroundColor3 = Theme.TabInactive
-                        elseif name == "AccentBar" or name == "Fill" or name == "Cursor" or name == "HueCursor" or name == "OpacityKnob" or name == "Preview" or name == "Dot" or name == "CustomCursor" or name == "Knob" then
+                        elseif name == "AccentBar" or name == "Fill" or name == "Cursor" or name == "HueCursor" or name == "OpacityKnob" or name == "Preview" or name == "Dot" or name == "CustomCursor" then
                             -- Skip accent/special colored elements
                         elseif name == "TrackBg" or name == "OpacityTrack" then
                             child.BackgroundColor3 = Theme.ToggleOff
