@@ -1736,7 +1736,7 @@ function Category:AddKeybind(config)
             end
             listening = false
             tween(keyStroke, {Color = Theme.Border}, 0.15)
-            tween(keyBtn, {BackgroundColor3 = Theme.TabInactive}, 0.15)
+            tween(keyBtn, {BackgroundColor3 = Theme.ToggleOff}, 0.15)
             if config.OnChanged then config.OnChanged(currentKey) end
         end
     end)
@@ -2131,6 +2131,9 @@ function Library:_refreshGlass()
                 end
             elseif p and p.Name == "Watermark" then
                 -- Watermark stroke is accent, skip
+            elseif p and p.Name == "KeyBtn" then
+                desc.Color = Theme.SubText
+                desc.Transparency = 0.1
             else
                 desc.Color = Theme.Border
                 desc.Transparency = Theme.BorderTransp
@@ -2165,6 +2168,8 @@ function Library:_refreshGlass()
                             end
                         elseif name == "GBSep" then
                             child.BackgroundColor3 = Theme.Border
+                        elseif name == "KeyBtn" then
+                            child.BackgroundColor3 = Theme.ToggleOff
                         elseif name == "Btn" or name == "Shadow" then
                             -- Skip inner button/shadow
                         else
