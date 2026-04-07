@@ -2090,10 +2090,9 @@ function Library:_refreshGlass()
         end
     end
 
-    -- Update all descendants: Glass frames, strokes, toggle off, dropdown options, etc.
+    -- Update all UI strokes (borders)
     for _, desc in ipairs(self.ScreenGui:GetDescendants()) do
-        if desc:IsA("UIStroke") and desc.Name ~= "AccentBar" then
-            -- Skip strokes on active toggle checkboxes and watermark
+        if desc:IsA("UIStroke") then
             local p = desc.Parent
             if p and p.Name == "CheckBox" then
                 local check = p:FindFirstChild("Check")
@@ -2112,45 +2111,45 @@ function Library:_refreshGlass()
         end
     end
 
-    for _, catData in pairs(self._categories) do
-        for _, col in ipairs(catData.cols) do
-            local function updateGlass(parent)
-                for _, child in ipairs(parent:GetChildren()) do
-                    -- Update Glass-colored backgrounds (buttons, toggles, dropdowns, sliders, etc.)
-                    if (child:IsA("Frame") or child:IsA("TextButton")) and child.BackgroundTransparency < 1 then
-                        local name = child.Name
-                        if name == "CheckBox" then
-                            local check = child:FindFirstChild("Check")
-                            if not check or check.TextTransparency > 0.5 then
-                                child.BackgroundColor3 = Theme.ToggleOff
-                            end
-                        elseif name == "SelectedPill" then
-                            child.BackgroundColor3 = Theme.TabInactive
-                        elseif name == "AccentBar" or name == "Fill" or name == "Cursor" or name == "HueCursor" or name == "OpacityKnob" or name == "Preview" or name == "Dot" or name == "CustomCursor" then
-                            -- Skip accent/special colored elements
-                        elseif name == "TrackBg" or name == "OpacityTrack" then
-                            child.BackgroundColor3 = Theme.ToggleOff
-                        elseif child.Name:sub(1, 4) == "Opt_" then
-                            -- Dropdown option: check if selected
-                            if child.BackgroundTransparency <= 0.3 then
-                                child.BackgroundColor3 = Theme.Accent
-                            else
-                                child.BackgroundColor3 = Theme.GlassHover
-                            end
-                        elseif name == "GBSep" then
-                            child.BackgroundColor3 = Theme.Border
-                        else
-                            child.BackgroundColor3 = Theme.Glass
-                        end
+    -- Recursive function to update all glass elements
+    local function updateGlass(parent)
+        for _, child in ipairs(parent:GetChildren()) do
+            if (child:IsA("Frame") or child:IsA("TextButton")) and child.BackgroundTransparency < 1 then
+                local name = child.Name
+                if name == "CheckBox" then
+                    local check = child:FindFirstChild("Check")
+                    if not check or check.TextTransparency > 0.5 then
+                        child.BackgroundColor3 = Theme.ToggleOff
                     end
-                    -- Recurse into GroupBoxes and other containers
-                    if child:IsA("Frame") and (child:FindFirstChild("GBTitle") or child.Name == "Options") then
-                        updateGlass(child)
+                elseif name == "SelectedPill" then
+                    child.BackgroundColor3 = Theme.TabInactive
+                elseif name == "AccentBar" or name == "Fill" or name == "Cursor" or name == "HueCursor" or name == "OpacityKnob" or name == "Preview" or name == "Dot" or name == "CustomCursor" or name == "OpacityFill" then
+                    -- Skip accent/special colored elements
+                elseif name == "TrackBg" or name == "OpacityTrack" then
+                    child.BackgroundColor3 = Theme.ToggleOff
+                elseif child.Name:sub(1, 4) == "Opt_" then
+                    if child.BackgroundTransparency <= 0.3 then
+                        child.BackgroundColor3 = Theme.Accent
+                    else
+                        child.BackgroundColor3 = Theme.GlassHover
                     end
+                elseif name == "GBSep" then
+                    child.BackgroundColor3 = Theme.Border
+                    child.BackgroundTransparency = Theme.BorderTransp
+                else
+                    child.BackgroundColor3 = Theme.Glass
                 end
             end
-            updateGlass(col)
+            -- Recurse into all Frame/ScrollingFrame containers
+            if child:IsA("Frame") or child:IsA("ScrollingFrame") then
+                updateGlass(child)
+            end
         end
+    end
+
+    -- Update content area and all categories
+    if self._contentArea then
+        updateGlass(self._contentArea)
     end
 
     -- Update title bar
@@ -2249,9 +2248,34 @@ function Library:AddSettings()
             if t then
                 Theme.Background = Color3.fromRGB(unpack(t.bg))
                 Theme.Glass = Color3.fromRGB(unpack(t.glass))
+                Theme.GlassHover = Color3.fromRGB(
+                    math.min(255, math.floor(t.glass[1] * 1.5)),
+                    math.min(255, math.floor(t.glass[2] * 1.5)),
+                    math.min(255, math.floor(t.glass[3] * 1.5))
+                )
                 Theme.Accent = Color3.fromRGB(unpack(t.accent))
                 Theme.ToggleOn = Theme.Accent
                 Theme.Border = Color3.fromRGB(unpack(t.border))
+                Theme.TabBg = Color3.fromRGB(
+                    math.floor((t.bg[1] + t.glass[1]) / 2),
+                    math.floor((t.bg[2] + t.glass[2]) / 2),
+                    math.floor((t.bg[3] + t.glass[3]) / 2)
+                )
+                Theme.TabActive = Color3.fromRGB(
+                    math.min(255, math.floor(t.glass[1] * 2.2)),
+                    math.min(255, math.floor(t.glass[2] * 2.2)),
+                    math.min(255, math.floor(t.glass[3] * 2.2))
+                )
+                Theme.TabInactive = Color3.fromRGB(
+                    math.min(255, math.floor(t.glass[1] * 1.1)),
+                    math.min(255, math.floor(t.glass[2] * 1.1)),
+                    math.min(255, math.floor(t.glass[3] * 1.1))
+                )
+                Theme.ToggleOff = Color3.fromRGB(
+                    math.min(255, math.floor(t.glass[1] * 1.55)),
+                    math.min(255, math.floor(t.glass[2] * 1.55)),
+                    math.min(255, math.floor(t.glass[3] * 1.55))
+                )
                 tween(libSelf.Main, {BackgroundColor3 = Theme.Background}, 0.3)
                 if libSelf._watermark then
                     tween(libSelf._watermark, {BackgroundColor3 = Theme.Background}, 0.3)
