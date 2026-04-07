@@ -487,9 +487,24 @@ function Library.new(title)
         if self._watermark then
             self._watermark.Visible = true
         end
+        -- Fire OnReady callbacks
+        if self._onReadyCallbacks then
+            for _, cb in ipairs(self._onReadyCallbacks) do
+                task.spawn(cb)
+            end
+        end
     end)
 
     return self
+end
+
+function Library:OnReady(callback)
+    if self._bootDone then
+        task.spawn(callback)
+    else
+        if not self._onReadyCallbacks then self._onReadyCallbacks = {} end
+        table.insert(self._onReadyCallbacks, callback)
+    end
 end
 
 -- ═══════════════════════════════════════════════════
@@ -1282,6 +1297,228 @@ function Category:AddDropdown(config)
     return {
         Set = function(_, val) selectOption(val) end,
         Get = function() return selected end,
+    }
+end
+
+-- ═══════════════════════════════════════════════════
+--  CATEGORY: PLAYER LIST DROPDOWN
+-- ═══════════════════════════════════════════════════
+function Category:AddPlayerList(config)
+    config = config or {}
+    local col, ci = self:_getColumn(config.Column)
+    local order = self:_incOrder(ci)
+    local selected = nil
+    local open = false
+    local optButtons = {}
+
+    local holder = Instance.new("Frame")
+    holder.Name = config.Name or "PlayerList"
+    holder.BackgroundColor3 = Theme.Glass
+    holder.BackgroundTransparency = Theme.Transparency
+    holder.Size = UDim2.new(1, 0, 0, 32)
+    holder.LayoutOrder = order
+    holder.ClipsDescendants = true
+    holder.Parent = col
+    applyGlass(holder)
+
+    local accentBar = Instance.new("Frame")
+    accentBar.Name = "AccentBar"
+    accentBar.BackgroundColor3 = Theme.Accent
+    accentBar.Size = UDim2.new(0, 3, 0, 20)
+    accentBar.Position = UDim2.new(0, 4, 0, 6)
+    accentBar.BorderSizePixel = 0
+    accentBar.Parent = holder
+    Instance.new("UICorner", accentBar).CornerRadius = UDim.new(1, 0)
+
+    local label = Instance.new("TextLabel")
+    label.Text = config.Text or "Player"
+    label.Font = Theme.Font
+    label.TextSize = 12
+    label.TextColor3 = Theme.SubText
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.new(0.5, -5, 0, 32)
+    label.Position = UDim2.new(0, 14, 0, 0)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = holder
+
+    local selectedPill = Instance.new("Frame")
+    selectedPill.Name = "SelectedPill"
+    selectedPill.BackgroundColor3 = Theme.TabInactive
+    selectedPill.BackgroundTransparency = 0.3
+    selectedPill.Size = UDim2.new(0.5, -14, 0, 22)
+    selectedPill.Position = UDim2.new(0.5, 2, 0, 5)
+    selectedPill.Parent = holder
+    Instance.new("UICorner", selectedPill).CornerRadius = UDim.new(0, 5)
+    local pillStroke = Instance.new("UIStroke")
+    pillStroke.Color = Theme.Border
+    pillStroke.Transparency = Theme.BorderTransp
+    pillStroke.Thickness = 1
+    pillStroke.Parent = selectedPill
+
+    local selectedLabel = Instance.new("TextLabel")
+    selectedLabel.Name = "Selected"
+    selectedLabel.Text = "None"
+    selectedLabel.Font = Theme.Font
+    selectedLabel.TextSize = 11
+    selectedLabel.TextColor3 = Theme.Text
+    selectedLabel.BackgroundTransparency = 1
+    selectedLabel.Size = UDim2.new(1, -10, 1, 0)
+    selectedLabel.Position = UDim2.new(0, 5, 0, 0)
+    selectedLabel.TextXAlignment = Enum.TextXAlignment.Center
+    selectedLabel.Parent = selectedPill
+
+    local optScroll = Instance.new("ScrollingFrame")
+    optScroll.Name = "Options"
+    optScroll.BackgroundTransparency = 1
+    optScroll.Size = UDim2.new(1, 0, 0, 0)
+    optScroll.Position = UDim2.new(0, 0, 0, 42)
+    optScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    optScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    optScroll.ScrollBarThickness = 2
+    optScroll.ScrollBarImageColor3 = Theme.Accent
+    optScroll.ScrollBarImageTransparency = 0.5
+    optScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+    optScroll.Visible = false
+    optScroll.Parent = holder
+
+    local optLayout = Instance.new("UIListLayout")
+    optLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    optLayout.Padding = UDim.new(0, 2)
+    optLayout.Parent = optScroll
+
+    local optPad = Instance.new("UIPadding")
+    optPad.PaddingLeft = UDim.new(0, 6)
+    optPad.PaddingRight = UDim.new(0, 6)
+    optPad.PaddingTop = UDim.new(0, 4)
+    optPad.PaddingBottom = UDim.new(0, 6)
+    optPad.Parent = optScroll
+
+    local function closeDropdown()
+        open = false
+        tween(holder, {Size = UDim2.new(1, 0, 0, 32)}, 0.2)
+        tween(pillStroke, {Color = Theme.Border}, 0.15)
+        task.delay(0.2, function()
+            if not open then optScroll.Visible = false end
+        end)
+    end
+
+    local function selectPlayer(name)
+        selected = name
+        selectedLabel.Text = name or "None"
+        for _, data in ipairs(optButtons) do
+            if data.name == name then
+                tween(data.btn, {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.3}, 0.15)
+            else
+                tween(data.btn, {BackgroundColor3 = Theme.GlassHover, BackgroundTransparency = 0.5}, 0.15)
+            end
+        end
+        if config.Callback then config.Callback(name) end
+        closeDropdown()
+    end
+
+    local function refreshPlayers()
+        for _, data in ipairs(optButtons) do
+            data.btn:Destroy()
+        end
+        optButtons = {}
+
+        local players = Players:GetPlayers()
+        local localPlayer = Players.LocalPlayer
+        for i, plr in ipairs(players) do
+            if plr ~= localPlayer or config.IncludeSelf then
+                local optBtn = Instance.new("TextButton")
+                optBtn.Name = "Opt_" .. plr.Name
+                optBtn.Text = "  " .. plr.DisplayName .. " (@" .. plr.Name .. ")"
+                optBtn.Font = Theme.Font
+                optBtn.TextSize = 11
+                optBtn.TextXAlignment = Enum.TextXAlignment.Left
+                optBtn.TextColor3 = Theme.Text
+                optBtn.BackgroundColor3 = (selected == plr.Name) and Theme.Accent or Theme.GlassHover
+                optBtn.BackgroundTransparency = (selected == plr.Name) and 0.3 or 0.5
+                optBtn.Size = UDim2.new(1, 0, 0, 24)
+                optBtn.AutoButtonColor = false
+                optBtn.LayoutOrder = i
+                optBtn.Parent = optScroll
+                applySmallCorner(optBtn)
+
+                table.insert(optButtons, {btn = optBtn, name = plr.Name})
+
+                optBtn.MouseEnter:Connect(function()
+                    if plr.Name ~= selected then
+                        tween(optBtn, {BackgroundTransparency = 0.2}, 0.15)
+                    end
+                end)
+                optBtn.MouseLeave:Connect(function()
+                    if plr.Name ~= selected then
+                        tween(optBtn, {BackgroundTransparency = 0.5}, 0.15)
+                    end
+                end)
+                optBtn.MouseButton1Click:Connect(function()
+                    selectPlayer(plr.Name)
+                end)
+            end
+        end
+
+        -- If selected player left, reset
+        if selected then
+            local found = false
+            for _, data in ipairs(optButtons) do
+                if data.name == selected then found = true; break end
+            end
+            if not found then
+                selected = nil
+                selectedLabel.Text = "None"
+                if config.Callback then config.Callback(nil) end
+            end
+        end
+    end
+
+    -- Auto-refresh on player join/leave
+    Players.PlayerAdded:Connect(function()
+        if open then
+            refreshPlayers()
+            local count = #optButtons
+            local listH = math.min(count * 26 + 10, 130)
+            optScroll.Size = UDim2.new(1, 0, 0, listH)
+            tween(holder, {Size = UDim2.new(1, 0, 0, 42 + listH)}, 0.2)
+        end
+    end)
+    Players.PlayerRemoving:Connect(function()
+        task.defer(function()
+            if open then
+                refreshPlayers()
+                local count = #optButtons
+                local listH = math.min(count * 26 + 10, 130)
+                optScroll.Size = UDim2.new(1, 0, 0, listH)
+                tween(holder, {Size = UDim2.new(1, 0, 0, 42 + listH)}, 0.2)
+            end
+        end)
+    end)
+
+    local toggleBtn = Instance.new("TextButton")
+    toggleBtn.Text = ""
+    toggleBtn.BackgroundTransparency = 1
+    toggleBtn.Size = UDim2.new(1, 0, 0, 32)
+    toggleBtn.ZIndex = 5
+    toggleBtn.Parent = holder
+    toggleBtn.MouseButton1Click:Connect(function()
+        if open then
+            closeDropdown()
+        else
+            open = true
+            refreshPlayers()
+            optScroll.Visible = true
+            tween(pillStroke, {Color = Theme.Accent}, 0.15)
+            local count = #optButtons
+            local listH = math.min(count * 26 + 10, 130)
+            optScroll.Size = UDim2.new(1, 0, 0, listH)
+            tween(holder, {Size = UDim2.new(1, 0, 0, 42 + listH)}, 0.2)
+        end
+    end)
+
+    return {
+        Get = function() return selected end,
+        Refresh = refreshPlayers,
     }
 end
 
@@ -2763,6 +3000,256 @@ function Library:_updateWatermarkText()
         end
     end
     self._wmLabel.Text = table.concat(parts, " | ")
+end
+
+-- ═══════════════════════════════════════════════════
+--  DESTROY
+-- ═══════════════════════════════════════════════════
+--  CHANGELOG MODAL
+-- ═══════════════════════════════════════════════════
+function Library:ShowChangelog(config)
+    config = config or {}
+    local title = config.Title or "Changelog"
+    local entries = config.Entries or {}
+    local version = config.Version or "1.0.0"
+
+    -- Overlay
+    local overlay = Instance.new("Frame")
+    overlay.Name = "ChangelogOverlay"
+    overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    overlay.BackgroundTransparency = 1
+    overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.ZIndex = 80
+    overlay.Parent = self.ScreenGui
+
+    tween(overlay, {BackgroundTransparency = 0.5}, 0.25)
+
+    -- Modal card
+    local modal = Instance.new("Frame")
+    modal.Name = "ChangelogModal"
+    modal.BackgroundColor3 = Theme.Background
+    modal.BackgroundTransparency = 0.05
+    modal.Size = UDim2.new(0, 0, 0, 0)
+    modal.Position = UDim2.new(0.5, 0, 0.5, 0)
+    modal.AnchorPoint = Vector2.new(0.5, 0.5)
+    modal.ClipsDescendants = true
+    modal.ZIndex = 81
+    modal.Parent = self.ScreenGui
+    Instance.new("UICorner", modal).CornerRadius = Theme.CornerRadius
+
+    local modalStroke = Instance.new("UIStroke")
+    modalStroke.Color = Theme.Accent
+    modalStroke.Transparency = 0.3
+    modalStroke.Thickness = 1
+    modalStroke.Parent = modal
+    addShadow(modal)
+
+    tween(modal, {Size = UDim2.new(0, 340, 0, 280)}, 0.35)
+    task.wait(0.35)
+
+    -- Header bar
+    local header = Instance.new("Frame")
+    header.Name = "Header"
+    header.BackgroundColor3 = Theme.Glass
+    header.BackgroundTransparency = 0.3
+    header.Size = UDim2.new(1, 0, 0, 38)
+    header.ZIndex = 82
+    header.Parent = modal
+    Instance.new("UICorner", header).CornerRadius = Theme.CornerRadius
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Text = title
+    titleLabel.Font = Theme.FontBold
+    titleLabel.TextSize = 15
+    titleLabel.TextColor3 = Theme.Text
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Size = UDim2.new(1, -90, 1, 0)
+    titleLabel.Position = UDim2.new(0, 14, 0, 0)
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.ZIndex = 83
+    titleLabel.Parent = header
+
+    local versionLabel = Instance.new("TextLabel")
+    versionLabel.Text = "v" .. version
+    versionLabel.Font = Theme.Font
+    versionLabel.TextSize = 11
+    versionLabel.TextColor3 = Theme.Accent
+    versionLabel.BackgroundTransparency = 1
+    versionLabel.Size = UDim2.new(0, 60, 1, 0)
+    versionLabel.Position = UDim2.new(1, -100, 0, 0)
+    versionLabel.TextXAlignment = Enum.TextXAlignment.Right
+    versionLabel.ZIndex = 83
+    versionLabel.Parent = header
+
+    -- Close button
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Text = "x"
+    closeBtn.Font = Theme.Font
+    closeBtn.TextSize = 18
+    closeBtn.TextColor3 = Theme.SubText
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Size = UDim2.new(0, 38, 0, 38)
+    closeBtn.Position = UDim2.new(1, -38, 0, 0)
+    closeBtn.ZIndex = 84
+    closeBtn.Parent = header
+
+    -- Scrolling content
+    local content = Instance.new("ScrollingFrame")
+    content.Name = "Content"
+    content.BackgroundTransparency = 1
+    content.Size = UDim2.new(1, -16, 1, -50)
+    content.Position = UDim2.new(0, 8, 0, 44)
+    content.CanvasSize = UDim2.new(0, 0, 0, 0)
+    content.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    content.ScrollBarThickness = 2
+    content.ScrollBarImageColor3 = Theme.Accent
+    content.ScrollBarImageTransparency = 0.5
+    content.ScrollingDirection = Enum.ScrollingDirection.Y
+    content.ZIndex = 82
+    content.Parent = modal
+
+    local contentLayout = Instance.new("UIListLayout")
+    contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    contentLayout.Padding = UDim.new(0, 8)
+    contentLayout.Parent = content
+
+    local contentPad = Instance.new("UIPadding")
+    contentPad.PaddingTop = UDim.new(0, 4)
+    contentPad.PaddingBottom = UDim.new(0, 8)
+    contentPad.PaddingLeft = UDim.new(0, 4)
+    contentPad.PaddingRight = UDim.new(0, 4)
+    contentPad.Parent = content
+
+    -- Build entries
+    for i, entry in ipairs(entries) do
+        local entryFrame = Instance.new("Frame")
+        entryFrame.Name = "Entry_" .. i
+        entryFrame.BackgroundColor3 = Theme.Glass
+        entryFrame.BackgroundTransparency = 0.4
+        entryFrame.Size = UDim2.new(1, 0, 0, 0)
+        entryFrame.AutomaticSize = Enum.AutomaticSize.Y
+        entryFrame.LayoutOrder = i
+        entryFrame.ZIndex = 82
+        entryFrame.Parent = content
+        Instance.new("UICorner", entryFrame).CornerRadius = Theme.CornerSmall
+
+        local entryPad = Instance.new("UIPadding")
+        entryPad.PaddingTop = UDim.new(0, 6)
+        entryPad.PaddingBottom = UDim.new(0, 6)
+        entryPad.PaddingLeft = UDim.new(0, 8)
+        entryPad.PaddingRight = UDim.new(0, 8)
+        entryPad.Parent = entryFrame
+
+        local entryLayout = Instance.new("UIListLayout")
+        entryLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        entryLayout.Padding = UDim.new(0, 3)
+        entryLayout.Parent = entryFrame
+
+        -- Entry header / date
+        if entry.Date then
+            local dateLabel = Instance.new("TextLabel")
+            dateLabel.Text = entry.Date
+            dateLabel.Font = Theme.FontBold
+            dateLabel.TextSize = 11
+            dateLabel.TextColor3 = Theme.Accent
+            dateLabel.BackgroundTransparency = 1
+            dateLabel.Size = UDim2.new(1, 0, 0, 14)
+            dateLabel.TextXAlignment = Enum.TextXAlignment.Left
+            dateLabel.LayoutOrder = 1
+            dateLabel.ZIndex = 83
+            dateLabel.Parent = entryFrame
+        end
+
+        if entry.Title then
+            local eTitleLabel = Instance.new("TextLabel")
+            eTitleLabel.Text = entry.Title
+            eTitleLabel.Font = Theme.FontBold
+            eTitleLabel.TextSize = 13
+            eTitleLabel.TextColor3 = Theme.Text
+            eTitleLabel.BackgroundTransparency = 1
+            eTitleLabel.Size = UDim2.new(1, 0, 0, 16)
+            eTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+            eTitleLabel.LayoutOrder = 2
+            eTitleLabel.ZIndex = 83
+            eTitleLabel.Parent = entryFrame
+        end
+
+        -- Changes list
+        if entry.Changes then
+            for j, change in ipairs(entry.Changes) do
+                local tag = change.Tag or "fix"
+                local tagColors = {
+                    add = Theme.Accent,
+                    fix = Color3.fromRGB(80, 180, 80),
+                    remove = Color3.fromRGB(200, 80, 80),
+                    change = Color3.fromRGB(200, 180, 60),
+                }
+
+                local row = Instance.new("Frame")
+                row.Name = "Change_" .. j
+                row.BackgroundTransparency = 1
+                row.Size = UDim2.new(1, 0, 0, 16)
+                row.LayoutOrder = 10 + j
+                row.ZIndex = 83
+                row.Parent = entryFrame
+
+                local tagLabel = Instance.new("TextLabel")
+                tagLabel.Text = string.upper(tag)
+                tagLabel.Font = Theme.FontBold
+                tagLabel.TextSize = 9
+                tagLabel.TextColor3 = tagColors[tag] or Theme.SubText
+                tagLabel.BackgroundColor3 = tagColors[tag] or Theme.SubText
+                tagLabel.BackgroundTransparency = 0.85
+                tagLabel.Size = UDim2.new(0, 50, 0, 14)
+                tagLabel.Position = UDim2.new(0, 0, 0, 1)
+                tagLabel.ZIndex = 84
+                tagLabel.Parent = row
+                Instance.new("UICorner", tagLabel).CornerRadius = UDim.new(0, 3)
+
+                local changeLabel = Instance.new("TextLabel")
+                changeLabel.Text = change.Text or ""
+                changeLabel.Font = Theme.Font
+                changeLabel.TextSize = 11
+                changeLabel.TextColor3 = Theme.Text
+                changeLabel.BackgroundTransparency = 1
+                changeLabel.Size = UDim2.new(1, -58, 0, 16)
+                changeLabel.Position = UDim2.new(0, 56, 0, 0)
+                changeLabel.TextXAlignment = Enum.TextXAlignment.Left
+                changeLabel.TextWrapped = true
+                changeLabel.AutomaticSize = Enum.AutomaticSize.Y
+                changeLabel.ZIndex = 84
+                changeLabel.Parent = row
+                row.AutomaticSize = Enum.AutomaticSize.Y
+            end
+        end
+    end
+
+    -- Fade in entries
+    for _, child in ipairs(content:GetChildren()) do
+        if child:IsA("Frame") then
+            child.BackgroundTransparency = 1
+            tween(child, {BackgroundTransparency = 0.4}, 0.3)
+        end
+    end
+
+    -- Close function
+    local function closeModal()
+        tween(modal, {Size = UDim2.new(0, 340, 0, 0)}, 0.3)
+        tween(modalStroke, {Transparency = 1}, 0.25)
+        tween(overlay, {BackgroundTransparency = 1}, 0.3)
+        task.wait(0.35)
+        overlay:Destroy()
+        modal:Destroy()
+    end
+
+    closeBtn.MouseEnter:Connect(function() tween(closeBtn, {TextColor3 = Color3.fromRGB(255, 80, 80)}, 0.15) end)
+    closeBtn.MouseLeave:Connect(function() tween(closeBtn, {TextColor3 = Theme.SubText}, 0.15) end)
+    closeBtn.MouseButton1Click:Connect(closeModal)
+    overlay.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            closeModal()
+        end
+    end)
 end
 
 -- ═══════════════════════════════════════════════════
