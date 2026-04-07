@@ -2159,12 +2159,14 @@ function Library:_refreshGlass()
                             end
                         elseif name == "GBSep" then
                             child.BackgroundColor3 = Theme.Border
+                        elseif name == "Btn" or name == "Shadow" then
+                            -- Skip inner button/shadow
                         else
                             child.BackgroundColor3 = Theme.Glass
                         end
                     end
-                    -- Recurse into GroupBoxes and other containers
-                    if child:IsA("Frame") and (child:FindFirstChild("GBTitle") or child.Name == "Options") then
+                    -- Recurse into all Frame children to find nested elements
+                    if child:IsA("Frame") or child:IsA("ScrollingFrame") then
                         updateGlass(child)
                     end
                 end
