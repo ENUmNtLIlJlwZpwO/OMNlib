@@ -1215,13 +1215,14 @@ function Category:AddMultiDropdown(config)
         applySmallCorner(optBtn)
 
         local checkBox = Instance.new("TextLabel")
-        checkBox.Text = "  [" .. (selected[opt] and "x" or " ") .. "]  " .. opt
+        checkBox.Text = opt
         checkBox.Font = Theme.Font
         checkBox.TextSize = 12
         checkBox.TextColor3 = Theme.Text
         checkBox.TextXAlignment = Enum.TextXAlignment.Left
         checkBox.BackgroundTransparency = 1
         checkBox.Size = UDim2.new(1, -26, 1, 0)
+        checkBox.Position = UDim2.new(0, 8, 0, 0)
         checkBox.Parent = optBtn
 
         local checkMark = Instance.new("TextLabel")
@@ -2054,7 +2055,7 @@ function Library:AddSettings()
     })
 
     local wmItems = {"Name", "FPS", "Time", "Ping", "Version"}
-    local wmDefaults = {"Name", "Version"}
+    local wmDefaults = libSelf._wmContent or {}
     WmGroup:AddMultiDropdown({
         Text = "Content",
         Options = wmItems,
@@ -2217,21 +2218,22 @@ function Library:SetWatermark(config)
     wmStroke.Thickness = 1
     wmStroke.Parent = wm
 
-    -- Accent bar on top
+    -- Accent bar on right
     local accentBar = Instance.new("Frame")
     accentBar.Name = "AccentBar"
     accentBar.BackgroundColor3 = Theme.Accent
-    accentBar.Size = UDim2.new(1, 0, 0, 2)
-    accentBar.Position = UDim2.new(0, 0, 0, 0)
+    accentBar.Size = UDim2.new(0, 3, 1, -8)
+    accentBar.Position = UDim2.new(1, -7, 0, 4)
     accentBar.BorderSizePixel = 0
     accentBar.ZIndex = 2
     accentBar.Parent = wm
+    Instance.new("UICorner", accentBar).CornerRadius = UDim.new(1, 0)
     self._wmAccentBar = accentBar
 
     local wmPad = Instance.new("UIPadding")
     wmPad.PaddingLeft = UDim.new(0, 10)
-    wmPad.PaddingRight = UDim.new(0, 10)
-    wmPad.PaddingTop = UDim.new(0, 4)
+    wmPad.PaddingRight = UDim.new(0, 14)
+    wmPad.PaddingTop = UDim.new(0, 2)
     wmPad.Parent = wm
 
     local wmLabel = Instance.new("TextLabel")
@@ -2241,21 +2243,28 @@ function Library:SetWatermark(config)
     wmLabel.TextSize = 12
     wmLabel.TextColor3 = Theme.SubText
     wmLabel.BackgroundTransparency = 1
-    wmLabel.Size = UDim2.new(0, 0, 1, -4)
+    wmLabel.Size = UDim2.new(0, 0, 1, -2)
     wmLabel.AutomaticSize = Enum.AutomaticSize.X
     wmLabel.Parent = wm
 
     self._watermark = wm
     self._wmLabel = wmLabel
-    self._wmContent = config.Content or {"Name", "Version"}
+    self._wmContent = config.Content or {}
     self._wmTitle = config.Title or "Glass HUD"
 
-    -- Start watermark updater
+    -- Start watermark updater (throttled FPS: every 0.5s)
     if not self._wmUpdaterConn then
-        local lastFps = 60
+        local fpsAccum = 0
+        local fpsFrames = 0
+        local fpsTimer = 0
         self._wmUpdaterConn = RunService.Heartbeat:Connect(function(dt)
-            lastFps = math.floor(1 / dt + 0.5)
-            self._wmFps = lastFps
+            fpsFrames = fpsFrames + 1
+            fpsTimer = fpsTimer + dt
+            if fpsTimer >= 0.5 then
+                self._wmFps = math.floor(fpsFrames / fpsTimer + 0.5)
+                fpsFrames = 0
+                fpsTimer = 0
+            end
             if self._watermark and self._watermark.Parent and self._watermark.Visible then
                 self:_updateWatermarkText()
             end
