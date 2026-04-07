@@ -1704,9 +1704,9 @@ function Category:AddKeybind(config)
     keyBtn.Parent = holder
     Instance.new("UICorner", keyBtn).CornerRadius = UDim.new(0, 5)
     local keyStroke = Instance.new("UIStroke")
-    keyStroke.Color = Theme.Border
-    keyStroke.Transparency = 0.2
-    keyStroke.Thickness = 1
+    keyStroke.Color = Theme.Accent
+    keyStroke.Transparency = 0.15
+    keyStroke.Thickness = 1.5
     keyStroke.Parent = keyBtn
 
     keyBtn.MouseButton1Click:Connect(function()
@@ -2131,6 +2131,10 @@ function Library:_refreshGlass()
                 end
             elseif p and p.Name == "Watermark" then
                 -- Watermark stroke is accent, skip
+            elseif p and p.Name == "KeyBtn" then
+                desc.Color = Theme.Accent
+            elseif desc.Name == "KnobStroke" then
+                desc.Color = Theme.Border
             else
                 desc.Color = Theme.Border
                 desc.Transparency = Theme.BorderTransp
