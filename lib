@@ -2182,9 +2182,29 @@ function Library:AddSettings()
         end,
     })
 
-    -- Watermark controls inside Theme GroupBox
-    ThemeGroup:AddToggle({
+    -- Col 1 -- Custom Cursor GroupBox
+    local CursorGroup = Settings:AddGroupBox({
+        Column = 1,
+        Text = "Custom Cursor",
+    })
+
+    CursorGroup:AddDropdown({
+        Text = "Style",
+        Options = {"None", "Circle", "Ring", "Cross", "Diamond", "Dot", "Plus", "Target", "Square"},
+        Default = libSelf._cursorStyle or "None",
+        Callback = function(opt)
+            libSelf:SetCustomCursor(opt)
+        end,
+    })
+
+    -- Col 3 -- Watermark GroupBox
+    local WmGroup = Settings:AddGroupBox({
+        Column = 3,
         Text = "Watermark",
+    })
+
+    WmGroup:AddToggle({
+        Text = "Enabled",
         Default = libSelf._watermark ~= nil,
         Callback = function(state)
             if libSelf._watermark then
@@ -2198,24 +2218,13 @@ function Library:AddSettings()
 
     local wmItems = {"Name", "FPS", "Time", "Ping", "Version"}
     local wmDefaults = libSelf._wmContent or {}
-    ThemeGroup:AddMultiDropdown({
-        Text = "WM Content",
+    WmGroup:AddMultiDropdown({
+        Text = "Content",
         Options = wmItems,
         Default = wmDefaults,
         Callback = function(selected)
             libSelf._wmContent = selected
             libSelf:_updateWatermarkText()
-        end,
-    })
-
-    -- Col 3 -- Custom Cursor
-    Settings:AddDropdown({
-        Column = 3,
-        Text = "Custom Cursor",
-        Options = {"None", "Circle", "Ring", "Cross", "Diamond", "Dot", "Plus", "Target", "Square"},
-        Default = libSelf._cursorStyle or "None",
-        Callback = function(opt)
-            libSelf:SetCustomCursor(opt)
         end,
     })
 
