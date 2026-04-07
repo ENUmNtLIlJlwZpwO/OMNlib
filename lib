@@ -127,6 +127,147 @@ local function makeColumn(parent, index, totalCols, gap, padX, padY)
 end
 
 -- ═══════════════════════════════════════════════════
+--  BOOT ANIMATION
+-- ═══════════════════════════════════════════════════
+local function playBootAnimation(screenGui, titleText)
+    -- ── Dark overlay ──
+    local overlay = Instance.new("Frame")
+    overlay.Name = "BootOverlay"
+    overlay.BackgroundColor3 = Color3.fromRGB(6, 6, 8)
+    overlay.BackgroundTransparency = 1
+    overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.ZIndex = 50
+    overlay.Parent = screenGui
+
+    tween(overlay, {BackgroundTransparency = 0.35}, 0.25)
+    task.wait(0.15)
+
+    -- ── Glass card ──
+    local card = Instance.new("Frame")
+    card.Name = "BootCard"
+    card.BackgroundColor3 = Theme.Glass
+    card.BackgroundTransparency = 0.1
+    card.Size = UDim2.new(0, 0, 0, 0)
+    card.Position = UDim2.new(0.5, 0, 0.5, 0)
+    card.AnchorPoint = Vector2.new(0.5, 0.5)
+    card.ClipsDescendants = true
+    card.ZIndex = 51
+    card.Parent = screenGui
+    Instance.new("UICorner", card).CornerRadius = Theme.CornerRadius
+
+    local cardStroke = Instance.new("UIStroke")
+    cardStroke.Color = Theme.Border
+    cardStroke.Transparency = 0.4
+    cardStroke.Thickness = 1
+    cardStroke.Parent = card
+
+    tween(card, {Size = UDim2.new(0, 260, 0, 110)}, 0.4)
+    task.wait(0.4)
+
+    -- ── Title (typewriter) ──
+    local bootTitle = Instance.new("TextLabel")
+    bootTitle.Name = "BootTitle"
+    bootTitle.Text = ""
+    bootTitle.Font = Theme.FontBold
+    bootTitle.TextSize = 18
+    bootTitle.TextColor3 = Theme.Text
+    bootTitle.BackgroundTransparency = 1
+    bootTitle.Size = UDim2.new(1, 0, 0, 24)
+    bootTitle.Position = UDim2.new(0, 0, 0, 18)
+    bootTitle.ZIndex = 52
+    bootTitle.Parent = card
+
+    local fullTitle = titleText or "Glass UI"
+    for i = 1, #fullTitle do
+        bootTitle.Text = string.sub(fullTitle, 1, i)
+        task.wait(0.035)
+    end
+    task.wait(0.1)
+
+    -- ── Accent scan line sweep ──
+    local scanLine = Instance.new("Frame")
+    scanLine.Name = "ScanLine"
+    scanLine.BackgroundColor3 = Theme.Accent
+    scanLine.Size = UDim2.new(0, 50, 1, 0)
+    scanLine.Position = UDim2.new(0, -50, 0, 0)
+    scanLine.ZIndex = 53
+    scanLine.Parent = card
+
+    local scanGrad = Instance.new("UIGradient")
+    scanGrad.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 1),
+        NumberSequenceKeypoint.new(0.5, 0.65),
+        NumberSequenceKeypoint.new(1, 0.15),
+    })
+    scanGrad.Parent = scanLine
+
+    tween(scanLine, {Position = UDim2.new(1, 10, 0, 0)}, 0.5)
+    task.wait(0.5)
+    scanLine:Destroy()
+
+    -- ── Progress bar ──
+    local track = Instance.new("Frame")
+    track.Name = "BootTrack"
+    track.BackgroundColor3 = Theme.ToggleOff
+    track.Size = UDim2.new(0.6, 0, 0, 2)
+    track.Position = UDim2.new(0.2, 0, 0, 58)
+    track.ZIndex = 52
+    track.Parent = card
+    Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
+
+    local fill = Instance.new("Frame")
+    fill.Name = "BootFill"
+    fill.BackgroundColor3 = Theme.Accent
+    fill.Size = UDim2.new(0, 0, 1, 0)
+    fill.ZIndex = 53
+    fill.Parent = track
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+
+    -- ── Status text ──
+    local status = Instance.new("TextLabel")
+    status.Name = "BootStatus"
+    status.Text = "Initializing..."
+    status.Font = Theme.Font
+    status.TextSize = 10
+    status.TextColor3 = Theme.SubText
+    status.BackgroundTransparency = 1
+    status.Size = UDim2.new(1, 0, 0, 14)
+    status.Position = UDim2.new(0, 0, 0, 68)
+    status.ZIndex = 52
+    status.Parent = card
+
+    -- ── Fill stages ──
+    tween(fill, {Size = UDim2.new(0.3, 0, 1, 0)}, 0.3)
+    task.wait(0.35)
+
+    status.Text = "Loading modules..."
+    tween(fill, {Size = UDim2.new(0.65, 0, 1, 0)}, 0.3)
+    task.wait(0.35)
+
+    status.Text = "Applying theme..."
+    tween(fill, {Size = UDim2.new(0.9, 0, 1, 0)}, 0.25)
+    task.wait(0.3)
+
+    status.Text = "Ready"
+    tween(status, {TextColor3 = Theme.Accent}, 0.15)
+    tween(fill, {Size = UDim2.new(1, 0, 1, 0)}, 0.15)
+    task.wait(0.35)
+
+    -- ── Fade out ──
+    tween(card, {BackgroundTransparency = 1, Size = UDim2.new(0, 290, 0, 120)}, 0.3)
+    tween(cardStroke, {Transparency = 1}, 0.3)
+    tween(bootTitle, {TextTransparency = 1}, 0.25)
+    tween(status, {TextTransparency = 1}, 0.25)
+    tween(track, {BackgroundTransparency = 1}, 0.25)
+    tween(fill, {BackgroundTransparency = 1}, 0.25)
+    tween(overlay, {BackgroundTransparency = 1}, 0.35)
+    task.wait(0.4)
+
+    overlay:Destroy()
+    card:Destroy()
+end
+
+-- ═══════════════════════════════════════════════════
 --  WINDOW
 -- ═══════════════════════════════════════════════════
 function Library.new(title)
@@ -313,10 +454,21 @@ function Library.new(title)
     self._contentArea = contentArea
     self._tabOrder = 0
 
-    -- Open animation
+    -- Boot sequence + open animation
     task.defer(function()
-        task.wait(0.05)
+        playBootAnimation(self.ScreenGui, title or "Glass UI")
+        -- Accent flash on window border
+        local mainStroke = self.Main:FindFirstChildOfClass("UIStroke")
+        if mainStroke then
+            mainStroke.Color = Theme.Accent
+            mainStroke.Transparency = 0
+        end
         tween(self.Main, {Size = UDim2.new(0, W, 0, H)}, 0.4)
+        task.wait(0.45)
+        -- Fade stroke back to normal
+        if mainStroke then
+            tween(mainStroke, {Color = Theme.Border, Transparency = Theme.BorderTransp}, 0.5)
+        end
     end)
 
     return self
@@ -1927,58 +2079,7 @@ local CursorStyles = {
         s.Color = Theme.Border; s.Transparency = 0.2; s.Thickness = 1; s.Parent = f
         return f
     end,
-    Dot = function(parent)
-        local f = Instance.new("Frame")
-        f.Name = "CustomCursor"
-        f.BackgroundColor3 = Theme.Accent
-        f.Size = UDim2.new(0, 6, 0, 6)
-        f.AnchorPoint = Vector2.new(0.5, 0.5)
-        f.ZIndex = 999
-        f.Parent = parent
-        Instance.new("UICorner", f).CornerRadius = UDim.new(1, 0)
-        return f
-    end,
-    Plus = function(parent)
-        local f = Instance.new("Frame")
-        f.Name = "CustomCursor"
-        f.BackgroundTransparency = 1
-        f.Size = UDim2.new(0, 20, 0, 20)
-        f.AnchorPoint = Vector2.new(0.5, 0.5)
-        f.ZIndex = 999
-        f.Parent = parent
-        local h = Instance.new("Frame")
-        h.Name = "H"; h.BackgroundColor3 = Theme.Accent
-        h.Size = UDim2.new(1, 0, 0, 4); h.AnchorPoint = Vector2.new(0, 0.5)
-        h.Position = UDim2.new(0, 0, 0.5, 0); h.ZIndex = 999; h.Parent = f
-        Instance.new("UICorner", h).CornerRadius = UDim.new(0, 1)
-        local v = Instance.new("Frame")
-        v.Name = "V"; v.BackgroundColor3 = Theme.Accent
-        v.Size = UDim2.new(0, 4, 1, 0); v.AnchorPoint = Vector2.new(0.5, 0)
-        v.Position = UDim2.new(0.5, 0, 0, 0); v.ZIndex = 999; v.Parent = f
-        Instance.new("UICorner", v).CornerRadius = UDim.new(0, 1)
-        return f
-    end,
-    Target = function(parent)
-        local f = Instance.new("Frame")
-        f.Name = "CustomCursor"
-        f.BackgroundTransparency = 1
-        f.Size = UDim2.new(0, 20, 0, 20)
-        f.AnchorPoint = Vector2.new(0.5, 0.5)
-        f.ZIndex = 999
-        f.Parent = parent
-        Instance.new("UICorner", f).CornerRadius = UDim.new(1, 0)
-        local s = Instance.new("UIStroke")
-        s.Color = Theme.Accent; s.Thickness = 2; s.Parent = f
-        local h = Instance.new("Frame")
-        h.Name = "H"; h.BackgroundColor3 = Theme.Accent
-        h.Size = UDim2.new(0.4, 0, 0, 2); h.AnchorPoint = Vector2.new(0.5, 0.5)
-        h.Position = UDim2.new(0.5, 0, 0.5, 0); h.ZIndex = 999; h.Parent = f
-        local v = Instance.new("Frame")
-        v.Name = "V"; v.BackgroundColor3 = Theme.Accent
-        v.Size = UDim2.new(0, 2, 0.4, 0); v.AnchorPoint = Vector2.new(0.5, 0.5)
-        v.Position = UDim2.new(0.5, 0, 0.5, 0); v.ZIndex = 999; v.Parent = f
-        return f
-    end,
+
     Square = function(parent)
         local f = Instance.new("Frame")
         f.Name = "CustomCursor"
@@ -2033,27 +2134,20 @@ end
 function Library:_updateCursorAccent()
     if not self._cursor then return end
     local style = self._cursorStyle
-    if style == "Circle" or style == "Dot" then
+    if style == "Circle" then
         self._cursor.BackgroundColor3 = Theme.Accent
     elseif style == "Ring" then
         local s = self._cursor:FindFirstChildOfClass("UIStroke")
         if s then s.Color = Theme.Accent end
         local d = self._cursor:FindFirstChild("Dot")
         if d then d.BackgroundColor3 = Theme.Accent end
-    elseif style == "Cross" or style == "Plus" then
+    elseif style == "Cross" then
         local h = self._cursor:FindFirstChild("H")
         local v = self._cursor:FindFirstChild("V")
         if h then h.BackgroundColor3 = Theme.Accent end
         if v then v.BackgroundColor3 = Theme.Accent end
     elseif style == "Diamond" then
         self._cursor.BackgroundColor3 = Theme.Accent
-    elseif style == "Target" then
-        local s = self._cursor:FindFirstChildOfClass("UIStroke")
-        if s then s.Color = Theme.Accent end
-        local h = self._cursor:FindFirstChild("H")
-        local v = self._cursor:FindFirstChild("V")
-        if h then h.BackgroundColor3 = Theme.Accent end
-        if v then v.BackgroundColor3 = Theme.Accent end
     elseif style == "Square" then
         local s = self._cursor:FindFirstChildOfClass("UIStroke")
         if s then s.Color = Theme.Accent end
@@ -2368,7 +2462,7 @@ function Library:AddSettings()
 
     CursorGroup:AddDropdown({
         Text = "Style",
-        Options = {"None", "Circle", "Ring", "Cross", "Diamond", "Dot", "Plus", "Target", "Square"},
+        Options = {"None", "Circle", "Ring", "Cross", "Diamond", "Square"},
         Default = libSelf._cursorStyle or "None",
         Callback = function(opt)
             libSelf:SetCustomCursor(opt)
