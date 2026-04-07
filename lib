@@ -2071,6 +2071,95 @@ function Library:_refreshAccent(c)
     end
 end
 
+function Library:_refreshGlass()
+    -- Update TabBar
+    local tabBar = self._tabScroll and self._tabScroll.Parent
+    if tabBar then
+        tabBar.BackgroundColor3 = Theme.TabBg
+        local tbStroke = tabBar:FindFirstChildOfClass("UIStroke")
+        if tbStroke then tbStroke.Color = Theme.Border end
+    end
+
+    -- Update tab buttons
+    for _, tabData in ipairs(self._tabButtons) do
+        local btn = tabData.btn
+        if tabData.name == self._activeCategory then
+            btn.BackgroundColor3 = Theme.TabActive
+        else
+            btn.BackgroundColor3 = Theme.TabInactive
+        end
+    end
+
+    -- Update all descendants: Glass frames, strokes, toggle off, dropdown options, etc.
+    for _, desc in ipairs(self.ScreenGui:GetDescendants()) do
+        if desc:IsA("UIStroke") and desc.Name ~= "AccentBar" then
+            -- Skip strokes on active toggle checkboxes and watermark
+            local p = desc.Parent
+            if p and p.Name == "CheckBox" then
+                local check = p:FindFirstChild("Check")
+                if check and check.TextTransparency < 0.5 then
+                    -- Active toggle, keep accent color
+                else
+                    desc.Color = Theme.Border
+                    desc.Transparency = Theme.BorderTransp
+                end
+            elseif p and p.Name == "Watermark" then
+                -- Watermark stroke is accent, skip
+            else
+                desc.Color = Theme.Border
+                desc.Transparency = Theme.BorderTransp
+            end
+        end
+    end
+
+    for _, catData in pairs(self._categories) do
+        for _, col in ipairs(catData.cols) do
+            local function updateGlass(parent)
+                for _, child in ipairs(parent:GetChildren()) do
+                    -- Update Glass-colored backgrounds (buttons, toggles, dropdowns, sliders, etc.)
+                    if (child:IsA("Frame") or child:IsA("TextButton")) and child.BackgroundTransparency < 1 then
+                        local name = child.Name
+                        if name == "CheckBox" then
+                            local check = child:FindFirstChild("Check")
+                            if not check or check.TextTransparency > 0.5 then
+                                child.BackgroundColor3 = Theme.ToggleOff
+                            end
+                        elseif name == "SelectedPill" then
+                            child.BackgroundColor3 = Theme.TabInactive
+                        elseif name == "AccentBar" or name == "Fill" or name == "Cursor" or name == "HueCursor" or name == "OpacityKnob" or name == "Preview" or name == "Dot" or name == "CustomCursor" then
+                            -- Skip accent/special colored elements
+                        elseif name == "TrackBg" or name == "OpacityTrack" then
+                            child.BackgroundColor3 = Theme.ToggleOff
+                        elseif child.Name:sub(1, 4) == "Opt_" then
+                            -- Dropdown option: check if selected
+                            if child.BackgroundTransparency <= 0.3 then
+                                child.BackgroundColor3 = Theme.Accent
+                            else
+                                child.BackgroundColor3 = Theme.GlassHover
+                            end
+                        elseif name == "GBSep" then
+                            child.BackgroundColor3 = Theme.Border
+                        else
+                            child.BackgroundColor3 = Theme.Glass
+                        end
+                    end
+                    -- Recurse into GroupBoxes and other containers
+                    if child:IsA("Frame") and (child:FindFirstChild("GBTitle") or child.Name == "Options") then
+                        updateGlass(child)
+                    end
+                end
+            end
+            updateGlass(col)
+        end
+    end
+
+    -- Update title bar
+    local titleBar = self.Main:FindFirstChild("TitleBar")
+    if titleBar then
+        titleBar.BackgroundColor3 = Theme.Glass
+    end
+end
+
 function Library:_refreshTextColor(c)
     Theme.Text = c
     Theme.SubText = Color3.fromRGB(
@@ -2168,6 +2257,7 @@ function Library:AddSettings()
                     tween(libSelf._watermark, {BackgroundColor3 = Theme.Background}, 0.3)
                 end
                 libSelf:_refreshAccent(Theme.Accent)
+                libSelf:_refreshGlass()
                 libSelf:_refreshTextColor(Color3.fromRGB(unpack(t.text)))
                 libSelf:_updateCursorAccent()
                 if libSelf._wmAccentStroke then
