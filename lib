@@ -466,6 +466,7 @@ function Library.new(title)
     self._tabOrder = 0
 
     -- Boot sequence + open animation
+    self._bootDone = false
     task.defer(function()
         playBootAnimation(self.ScreenGui, title or "Glass UI")
         -- Accent flash on window border
@@ -479,6 +480,11 @@ function Library.new(title)
         -- Fade stroke back to normal
         if mainStroke then
             tween(mainStroke, {Color = Theme.Border, Transparency = Theme.BorderTransp}, 0.5)
+        end
+        -- Show watermark after boot
+        self._bootDone = true
+        if self._watermark then
+            self._watermark.Visible = true
         end
     end)
 
@@ -2672,8 +2678,17 @@ function Library:SetWatermark(config)
 
     self._watermark = wm
     self._wmLabel = wmLabel
-    self._wmContent = config.Content or {}
+    local defaultContent = config.Content
+    if not defaultContent or #defaultContent == 0 then
+        defaultContent = {"Name", "FPS", "Ping", "Version"}
+    end
+    self._wmContent = defaultContent
     self._wmTitle = config.Title or "Glass HUD"
+
+    -- Hide during boot, will be shown after boot animation
+    if not self._bootDone then
+        wm.Visible = false
+    end
 
     -- Start watermark updater (throttled FPS: every 0.5s)
     if not self._wmUpdaterConn then
