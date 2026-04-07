@@ -1100,17 +1100,6 @@ function Category:AddMultiDropdown(config)
     accentBar.Parent = holder
     Instance.new("UICorner", accentBar).CornerRadius = UDim.new(1, 0)
 
-    -- Second accent bar to distinguish from single dropdown
-    local accentBar2 = Instance.new("Frame")
-    accentBar2.Name = "AccentBar2"
-    accentBar2.BackgroundColor3 = Theme.Accent
-    accentBar2.BackgroundTransparency = 0.5
-    accentBar2.Size = UDim2.new(0, 2, 0, 14)
-    accentBar2.Position = UDim2.new(0, 9, 0, 9)
-    accentBar2.BorderSizePixel = 0
-    accentBar2.Parent = holder
-    Instance.new("UICorner", accentBar2).CornerRadius = UDim.new(1, 0)
-
     local label = Instance.new("TextLabel")
     label.Text = config.Text or "Multi Select"
     label.Font = Theme.Font
@@ -2085,7 +2074,7 @@ function Library:AddSettings()
     settingsTabBtn.AutomaticSize = Enum.AutomaticSize.X
 
     local libSelf = self
-    local bgPicker, textPicker
+    local bgPicker, textPicker, accentPicker
 
     -- Col 1 — General GroupBox
     local GeneralGroup = Settings:AddGroupBox({
@@ -2143,6 +2132,7 @@ function Library:AddSettings()
                 end
                 if bgPicker then bgPicker:Set(Theme.Background) end
                 if textPicker then textPicker:Set(Theme.Text) end
+                if accentPicker then accentPicker:Set(Theme.Accent) end
             end
         end,
     })
@@ -2155,6 +2145,23 @@ function Library:AddSettings()
         Callback = function(val)
             local t = 1 - val / 100
             libSelf.Main.BackgroundTransparency = t
+            if libSelf._watermark then
+                libSelf._watermark.BackgroundTransparency = math.clamp(t + 0.1, 0, 1)
+            end
+        end,
+    })
+
+    accentPicker = ThemeGroup:AddColorPicker({
+        Text = "Accent",
+        Default = Theme.Accent,
+        Callback = function(c)
+            Theme.Accent = c
+            Theme.ToggleOn = c
+            libSelf:_updateCursorAccent()
+            if libSelf._wmAccentBar then
+                libSelf._wmAccentBar.BackgroundColor3 = c
+            end
+            libSelf:_refreshAccent(c)
         end,
     })
 
@@ -2175,14 +2182,9 @@ function Library:AddSettings()
         end,
     })
 
-    -- Col 3 -- Watermark
-    local WmGroup = Settings:AddGroupBox({
-        Column = 3,
+    -- Watermark controls inside Theme GroupBox
+    ThemeGroup:AddToggle({
         Text = "Watermark",
-    })
-
-    WmGroup:AddToggle({
-        Text = "Enabled",
         Default = libSelf._watermark ~= nil,
         Callback = function(state)
             if libSelf._watermark then
@@ -2196,8 +2198,8 @@ function Library:AddSettings()
 
     local wmItems = {"Name", "FPS", "Time", "Ping", "Version"}
     local wmDefaults = libSelf._wmContent or {}
-    WmGroup:AddMultiDropdown({
-        Text = "Content",
+    ThemeGroup:AddMultiDropdown({
+        Text = "WM Content",
         Options = wmItems,
         Default = wmDefaults,
         Callback = function(selected)
