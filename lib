@@ -2051,6 +2051,9 @@ function Library:AddSettings()
             if libSelf._watermark then
                 libSelf._watermark.Visible = state
             end
+            if libSelf._wmAccentBar then
+                libSelf._wmAccentBar.Visible = state
+            end
         end,
     })
 
@@ -2206,10 +2209,10 @@ function Library:SetWatermark(config)
     wm.Name = "Watermark"
     wm.BackgroundColor3 = Theme.Glass
     wm.BackgroundTransparency = 0.15
-    wm.Size = UDim2.new(0, 0, 0, 30)
+    wm.Size = UDim2.new(0, 0, 0, 34)
     wm.AutomaticSize = Enum.AutomaticSize.X
     wm.Position = UDim2.new(0, 16, 0, 14)
-    wm.ClipsDescendants = true
+    wm.ClipsDescendants = false
     wm.Parent = self.ScreenGui
     applySmallCorner(wm)
     local wmStroke = Instance.new("UIStroke")
@@ -2218,21 +2221,9 @@ function Library:SetWatermark(config)
     wmStroke.Thickness = 1
     wmStroke.Parent = wm
 
-    -- Accent bar on right
-    local accentBar = Instance.new("Frame")
-    accentBar.Name = "AccentBar"
-    accentBar.BackgroundColor3 = Theme.Accent
-    accentBar.Size = UDim2.new(0, 3, 1, -8)
-    accentBar.Position = UDim2.new(1, -7, 0, 4)
-    accentBar.BorderSizePixel = 0
-    accentBar.ZIndex = 2
-    accentBar.Parent = wm
-    Instance.new("UICorner", accentBar).CornerRadius = UDim.new(1, 0)
-    self._wmAccentBar = accentBar
-
     local wmPad = Instance.new("UIPadding")
     wmPad.PaddingLeft = UDim.new(0, 10)
-    wmPad.PaddingRight = UDim.new(0, 14)
+    wmPad.PaddingRight = UDim.new(0, 10)
     wmPad.PaddingTop = UDim.new(0, 2)
     wmPad.Parent = wm
 
@@ -2246,6 +2237,28 @@ function Library:SetWatermark(config)
     wmLabel.Size = UDim2.new(0, 0, 1, -2)
     wmLabel.AutomaticSize = Enum.AutomaticSize.X
     wmLabel.Parent = wm
+
+    -- Accent bar on right (outside padding, re-positioned each update)
+    local accentBar = Instance.new("Frame")
+    accentBar.Name = "AccentBar"
+    accentBar.BackgroundColor3 = Theme.Accent
+    accentBar.Size = UDim2.new(0, 3, 0, 0)
+    accentBar.AnchorPoint = Vector2.new(0, 0)
+    accentBar.BorderSizePixel = 0
+    accentBar.ZIndex = 2
+    accentBar.Parent = self.ScreenGui
+    Instance.new("UICorner", accentBar).CornerRadius = UDim.new(1, 0)
+    self._wmAccentBar = accentBar
+
+    local function repositionAccentBar()
+        if not wm.Parent then return end
+        local absPos = wm.AbsolutePosition
+        local absSize = wm.AbsoluteSize
+        accentBar.Position = UDim2.new(0, absPos.X + absSize.X - 6, 0, absPos.Y + 5)
+        accentBar.Size = UDim2.new(0, 3, 0, absSize.Y - 10)
+        accentBar.Visible = wm.Visible
+    end
+    self._wmBarRepos = repositionAccentBar
 
     self._watermark = wm
     self._wmLabel = wmLabel
@@ -2268,6 +2281,7 @@ function Library:SetWatermark(config)
             if self._watermark and self._watermark.Parent and self._watermark.Visible then
                 self:_updateWatermarkText()
             end
+            if self._wmBarRepos then self._wmBarRepos() end
         end)
     end
 
