@@ -335,12 +335,21 @@ function Library:AddCategory(name, icon, opts)
     page.BackgroundTransparency = 1
     page.Size = UDim2.new(1, 0, 1, 0)
     page.Visible = false
+    page.ClipsDescendants = true
     page.Parent = self._contentArea
+
+    -- Groups transparency for fade transitions
+    local pageGroup = Instance.new("CanvasGroup")
+    pageGroup.Name = "PageGroup"
+    pageGroup.BackgroundTransparency = 1
+    pageGroup.Size = UDim2.new(1, 0, 1, 0)
+    pageGroup.GroupTransparency = 1
+    pageGroup.Parent = page
 
     -- Build 3 columns
     local cols = {}
     for i = 1, Theme.Columns do
-        cols[i] = makeColumn(page, i, Theme.Columns, Theme.ColGap, Theme.ColPadX, Theme.ColPadY)
+        cols[i] = makeColumn(pageGroup, i, Theme.Columns, Theme.ColGap, Theme.ColPadX, Theme.ColPadY)
     end
 
     -- Tab button (horizontal bar)
@@ -409,8 +418,25 @@ function Library:AddCategory(name, icon, opts)
     -- Switch logic
     local libSelf = self
     local function switchTo()
+        if libSelf._activeCategory == name then return end
+
+        -- Fade out old page
+        local oldName = libSelf._activeCategory
+        if oldName and libSelf._categories[oldName] then
+            local oldPage = libSelf._categories[oldName].page
+            local oldGroup = oldPage:FindFirstChild("PageGroup")
+            if oldGroup then
+                tween(oldGroup, {GroupTransparency = 1}, 0.15)
+            end
+            task.delay(0.15, function()
+                if libSelf._activeCategory ~= oldName then
+                    oldPage.Visible = false
+                end
+            end)
+        end
+
+        -- Deactivate all tabs
         for catName, cat in pairs(libSelf._categories) do
-            cat.page.Visible = false
             tween(cat.tabBtn, {
                 BackgroundColor3 = Theme.TabInactive,
                 BackgroundTransparency = 0.3,
@@ -420,7 +446,15 @@ function Library:AddCategory(name, icon, opts)
             local ico = cat.tabBtn:FindFirstChild("Icon")
             if ico then tween(ico, {ImageColor3 = Theme.SubText}, 0.2) end
         end
+
+        -- Activate new tab
+        libSelf._activeCategory = name
         page.Visible = true
+        local newGroup = page:FindFirstChild("PageGroup")
+        if newGroup then
+            newGroup.GroupTransparency = 1
+            tween(newGroup, {GroupTransparency = 0}, 0.2)
+        end
         tween(tabBtn, {
             BackgroundColor3 = Theme.TabActive,
             BackgroundTransparency = 0.1,
@@ -428,7 +462,6 @@ function Library:AddCategory(name, icon, opts)
         if tabText then tween(tabText, {TextColor3 = Theme.Text}, 0.2) end
         local myIcon = tabBtn:FindFirstChild("Icon")
         if myIcon then tween(myIcon, {ImageColor3 = Theme.Text}, 0.2) end
-        libSelf._activeCategory = name
     end
 
     tabBtn.MouseButton1Click:Connect(switchTo)
@@ -449,7 +482,10 @@ function Library:AddCategory(name, icon, opts)
         end
     end)
 
-    if self._tabOrder == 1 then switchTo() end
+    if self._tabOrder == 1 then
+        libSelf._activeCategory = nil
+        switchTo()
+    end
 
     -- Return Category object
     local cat = setmetatable({}, Category)
@@ -1785,7 +1821,7 @@ function Library:SetKeybind(keyCode)
     UserInputService.InputBegan:Connect(function(input, processed)
         if processed then return end
         if input.KeyCode == self._toggleKeyCode then
-            self.ScreenGui.Enabled = not self.ScreenGui.Enabled
+            self.Main.Visible = not self.Main.Visible
         end
     end)
 end
