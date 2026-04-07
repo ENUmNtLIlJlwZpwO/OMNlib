@@ -2240,16 +2240,16 @@ function Library:AddSettings()
         Default = "Dark",
         Callback = function(opt)
             local themes = {
-                Dark      = {bg={20,20,22},  glass={32,32,36},  accent={155,155,165}, text={220,220,225}, subtext={120,120,130}, border={55,55,60}},
-                Midnight  = {bg={12,12,20},  glass={22,22,34},  accent={130,140,180}, text={210,215,230}, subtext={100,110,140}, border={45,45,70}},
-                Ocean     = {bg={8,22,32},   glass={14,34,48},  accent={40,160,200},  text={200,225,235}, subtext={90,140,160},  border={30,65,85}},
-                Forest    = {bg={12,22,14},  glass={22,34,24},  accent={60,170,80},   text={200,230,205}, subtext={95,135,100},  border={40,65,45}},
-                Cherry    = {bg={28,12,16},  glass={42,22,28},  accent={210,60,90},   text={235,210,215}, subtext={145,90,105},  border={75,40,50}},
-                Amethyst  = {bg={20,12,28},  glass={32,22,42},  accent={150,80,210},  text={225,210,235}, subtext={125,95,145},  border={60,40,75}},
-                Mocha     = {bg={26,20,14},  glass={40,32,24},  accent={180,130,70},  text={230,215,200}, subtext={140,120,95},  border={70,55,40}},
-                Arctic    = {bg={18,24,30},  glass={28,36,44},  accent={100,180,220}, text={220,235,245}, subtext={110,140,160}, border={50,65,78}},
-                Crimson   = {bg={24,10,10},  glass={38,18,18},  accent={200,40,40},   text={240,210,210}, subtext={140,90,90},   border={70,35,35}},
-                Neon      = {bg={8,8,16},    glass={16,16,28},  accent={0,255,140},   text={210,240,220}, subtext={100,140,110}, border={30,40,50}},
+                Dark      = {bg={20,20,22},  glass={32,32,36},  accent={155,155,165}, text={220,220,225}, subtext={120,120,130}, border={55,55,60},  tabbg={25,25,28},  tabact={70,70,78},   tabinact={36,36,40}},
+                Midnight  = {bg={12,12,20},  glass={22,22,34},  accent={130,140,180}, text={210,215,230}, subtext={100,110,140}, border={45,45,70},  tabbg={16,16,26},  tabact={55,55,85},   tabinact={28,28,42}},
+                Ocean     = {bg={8,22,32},   glass={14,34,48},  accent={40,160,200},  text={200,225,235}, subtext={90,140,160},  border={30,65,85},  tabbg={10,26,38},  tabact={25,65,90},   tabinact={16,38,54}},
+                Forest    = {bg={12,22,14},  glass={22,34,24},  accent={60,170,80},   text={200,230,205}, subtext={95,135,100},  border={40,65,45},  tabbg={16,26,18},  tabact={45,75,50},   tabinact={26,40,28}},
+                Cherry    = {bg={28,12,16},  glass={42,22,28},  accent={210,60,90},   text={235,210,215}, subtext={145,90,105},  border={75,40,50},  tabbg={34,16,20},  tabact={85,40,55},   tabinact={48,26,32}},
+                Amethyst  = {bg={20,12,28},  glass={32,22,42},  accent={150,80,210},  text={225,210,235}, subtext={125,95,145},  border={60,40,75},  tabbg={24,16,34},  tabact={65,45,90},   tabinact={36,26,48}},
+                Mocha     = {bg={26,20,14},  glass={40,32,24},  accent={180,130,70},  text={230,215,200}, subtext={140,120,95},  border={70,55,40},  tabbg={30,24,18},  tabact={80,65,45},   tabinact={44,36,28}},
+                Arctic    = {bg={18,24,30},  glass={28,36,44},  accent={100,180,220}, text={220,235,245}, subtext={110,140,160}, border={50,65,78},  tabbg={22,28,36},  tabact={55,75,95},   tabinact={32,40,50}},
+                Crimson   = {bg={24,10,10},  glass={38,18,18},  accent={200,40,40},   text={240,210,210}, subtext={140,90,90},   border={70,35,35},  tabbg={28,14,14},  tabact={80,35,35},   tabinact={42,22,22}},
+                Neon      = {bg={8,8,16},    glass={16,16,28},  accent={0,255,140},   text={210,240,220}, subtext={100,140,110}, border={30,40,50},  tabbg={10,10,20},  tabact={25,50,45},   tabinact={18,18,32}},
             }
             local t = themes[opt]
             if t then
@@ -2258,6 +2258,15 @@ function Library:AddSettings()
                 Theme.Accent = Color3.fromRGB(unpack(t.accent))
                 Theme.ToggleOn = Theme.Accent
                 Theme.Border = Color3.fromRGB(unpack(t.border))
+                Theme.TabBg = Color3.fromRGB(unpack(t.tabbg))
+                Theme.TabActive = Color3.fromRGB(unpack(t.tabact))
+                Theme.TabInactive = Color3.fromRGB(unpack(t.tabinact))
+                Theme.GlassHover = Color3.fromRGB(unpack(t.glass))
+                Theme.ToggleOff = Color3.fromRGB(
+                    math.floor(t.glass[1] * 1.4 + 0.5),
+                    math.floor(t.glass[2] * 1.4 + 0.5),
+                    math.floor(t.glass[3] * 1.4 + 0.5)
+                )
                 tween(libSelf.Main, {BackgroundColor3 = Theme.Background}, 0.3)
                 if libSelf._watermark then
                     tween(libSelf._watermark, {BackgroundColor3 = Theme.Background}, 0.3)
