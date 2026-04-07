@@ -1696,16 +1696,16 @@ function Category:AddKeybind(config)
     keyBtn.Font = Theme.Font
     keyBtn.TextSize = 11
     keyBtn.TextColor3 = Theme.Text
-    keyBtn.BackgroundColor3 = Theme.ToggleOff
-    keyBtn.BackgroundTransparency = 0
+    keyBtn.BackgroundColor3 = Theme.TabInactive
+    keyBtn.BackgroundTransparency = 0.3
     keyBtn.Size = UDim2.new(0, 60, 0, 22)
     keyBtn.Position = UDim2.new(1, -68, 0, 5)
     keyBtn.AutoButtonColor = false
     keyBtn.Parent = holder
     Instance.new("UICorner", keyBtn).CornerRadius = UDim.new(0, 5)
     local keyStroke = Instance.new("UIStroke")
-    keyStroke.Color = Theme.SubText
-    keyStroke.Transparency = 0.1
+    keyStroke.Color = Theme.Border
+    keyStroke.Transparency = 0.2
     keyStroke.Thickness = 1
     keyStroke.Parent = keyBtn
 
@@ -2131,11 +2131,6 @@ function Library:_refreshGlass()
                 end
             elseif p and p.Name == "Watermark" then
                 -- Watermark stroke is accent, skip
-            elseif p and p.Name == "KeyBtn" then
-                desc.Color = Theme.SubText
-                desc.Transparency = 0.1
-            elseif desc.Name == "KnobStroke" then
-                desc.Color = Theme.Border
             else
                 desc.Color = Theme.Border
                 desc.Transparency = Theme.BorderTransp
@@ -2160,8 +2155,6 @@ function Library:_refreshGlass()
                         elseif name == "AccentBar" or name == "Fill" or name == "Cursor" or name == "HueCursor" or name == "OpacityKnob" or name == "Preview" or name == "Dot" or name == "CustomCursor" or name == "Knob" then
                             -- Skip accent/special colored elements
                         elseif name == "TrackBg" or name == "OpacityTrack" then
-                            child.BackgroundColor3 = Theme.ToggleOff
-                        elseif name == "KeyBtn" then
                             child.BackgroundColor3 = Theme.ToggleOff
                         elseif child.Name:sub(1, 4) == "Opt_" then
                             -- Dropdown option: check if selected
