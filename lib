@@ -2254,7 +2254,7 @@ function Library:SetWatermark(config)
         if not wm.Parent then return end
         local absPos = wm.AbsolutePosition
         local absSize = wm.AbsoluteSize
-        accentBar.Position = UDim2.new(0, absPos.X + absSize.X - 6, 0, absPos.Y + 5)
+        accentBar.Position = UDim2.new(0, absPos.X + 3, 0, absPos.Y + 5)
         accentBar.Size = UDim2.new(0, 3, 0, absSize.Y - 10)
         accentBar.Visible = wm.Visible
     end
