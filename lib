@@ -294,7 +294,7 @@ function Library.new(title)
     self.ScreenGui.ResetOnSpawn = false
     self.ScreenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 
-    -- Main Frame
+    -- Main Frame (hidden until boot finishes)
     self.Main = Instance.new("Frame")
     self.Main.Name = "Main"
     self.Main.BackgroundColor3 = Theme.Background
@@ -303,6 +303,7 @@ function Library.new(title)
     self.Main.Position = UDim2.new(0.5, -W / 2, 0.5, 0)
     self.Main.AnchorPoint = Vector2.new(0, 0.5)
     self.Main.ClipsDescendants = true
+    self.Main.Visible = false
     self.Main.Parent = self.ScreenGui
     applyGlass(self.Main)
     addShadow(self.Main)
@@ -469,7 +470,8 @@ function Library.new(title)
     self._bootDone = false
     task.defer(function()
         playBootAnimation(self.ScreenGui, title or "Glass UI")
-        -- Accent flash on window border
+        -- Show main frame and animate open
+        self.Main.Visible = true
         local mainStroke = self.Main:FindFirstChildOfClass("UIStroke")
         if mainStroke then
             mainStroke.Color = Theme.Accent
@@ -477,7 +479,6 @@ function Library.new(title)
         end
         tween(self.Main, {Size = UDim2.new(0, W, 0, H)}, 0.4)
         task.wait(0.45)
-        -- Fade stroke back to normal
         if mainStroke then
             tween(mainStroke, {Color = Theme.Border, Transparency = Theme.BorderTransp}, 0.5)
         end
