@@ -3529,7 +3529,7 @@ function Library:_createStringDumper()
             keyLabel.TextSize = 11
             keyLabel.TextColor3 = Theme.Text
             keyLabel.BackgroundTransparency = 1
-            keyLabel.Size = UDim2.new(1, -22, 0, 16)
+            keyLabel.Size = UDim2.new(0, 180, 0, 16)
             keyLabel.Position = UDim2.new(0, 0, 0, 0)
             keyLabel.TextXAlignment = Enum.TextXAlignment.Left
             keyLabel.TextTruncate = Enum.TextTruncate.AtEnd
@@ -3542,7 +3542,7 @@ function Library:_createStringDumper()
             typeTag.BackgroundTransparency = 0.3
             typeTag.Size = UDim2.new(0, 0, 0, 16)
             typeTag.AutomaticSize = Enum.AutomaticSize.X
-            typeTag.Position = UDim2.new(0, 0, 0, 18)
+            typeTag.Position = UDim2.new(0, 186, 0, 0)
             typeTag.ZIndex = 62
             typeTag.Parent = row
             Instance.new("UICorner", typeTag).CornerRadius = UDim.new(0, 3)
@@ -3571,8 +3571,8 @@ function Library:_createStringDumper()
             valueLabel.TextSize = 11
             valueLabel.TextColor3 = Theme.SubText
             valueLabel.BackgroundTransparency = 1
-            valueLabel.Size = UDim2.new(1, -86, 0, 16)
-            valueLabel.Position = UDim2.new(0, 82, 0, 18)
+            valueLabel.Size = UDim2.new(1, -252, 0, 16)
+            valueLabel.Position = UDim2.new(0, 252, 0, 0)
             valueLabel.TextXAlignment = Enum.TextXAlignment.Left
             valueLabel.TextTruncate = Enum.TextTruncate.AtEnd
             valueLabel.ZIndex = 62
