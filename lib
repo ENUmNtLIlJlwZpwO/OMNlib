@@ -2786,16 +2786,213 @@ function Library:AddAdminPanel()
     adminTabBtn.AnchorPoint = Vector2.new(1, 0.5)
     adminTabBtn.Size = UDim2.new(0, 0, 0, 26)
     adminTabBtn.AutomaticSize = Enum.AutomaticSize.X
-    -- Icon-only btn = ~26px wide; settings at offset -6, admin at -6 -26 -6 = -38
     adminTabBtn.Position = UDim2.new(1, -38, 0.5, 0)
 
-    -- Shift settings tab further right to make room
     local settingsData = self._categories["Settings"]
     if settingsData and settingsData.tabBtn then
         settingsData.tabBtn.Position = UDim2.new(1, -6, 0.5, 0)
     end
 
+    -- ── Console/Log Panel (spans all 3 columns via col 1) ──
+    local consoleHolder = Instance.new("Frame")
+    consoleHolder.Name = "ConsolePanel"
+    consoleHolder.BackgroundColor3 = Theme.Glass
+    consoleHolder.BackgroundTransparency = Theme.Transparency
+    consoleHolder.Size = UDim2.new(1, 0, 1, 0)
+    consoleHolder.LayoutOrder = 1
+    consoleHolder.ClipsDescendants = true
+    consoleHolder.Parent = self._categories["AdminPanel"].cols[1]
+    applyGlass(consoleHolder)
+
+    -- Hide col 2 and col 3, expand col 1 to full width
+    local cols = self._categories["AdminPanel"].cols
+    cols[1].Size = UDim2.new(1, 0, 1, 0)
+    cols[1].Position = UDim2.new(0, 0, 0, 0)
+    cols[2].Visible = false
+    cols[3].Visible = false
+
+    -- Header
+    local consoleHeader = Instance.new("Frame")
+    consoleHeader.Name = "ConsoleHeader"
+    consoleHeader.BackgroundColor3 = Theme.TabBg
+    consoleHeader.BackgroundTransparency = 0.3
+    consoleHeader.Size = UDim2.new(1, 0, 0, 28)
+    consoleHeader.ZIndex = 2
+    consoleHeader.Parent = consoleHolder
+    Instance.new("UICorner", consoleHeader).CornerRadius = Theme.CornerSmall
+
+    local consoleTitle = Instance.new("TextLabel")
+    consoleTitle.Text = "Console"
+    consoleTitle.Font = Theme.FontBold
+    consoleTitle.TextSize = 12
+    consoleTitle.TextColor3 = Theme.Text
+    consoleTitle.BackgroundTransparency = 1
+    consoleTitle.Size = UDim2.new(0.5, 0, 1, 0)
+    consoleTitle.Position = UDim2.new(0, 10, 0, 0)
+    consoleTitle.TextXAlignment = Enum.TextXAlignment.Left
+    consoleTitle.ZIndex = 3
+    consoleTitle.Parent = consoleHeader
+
+    -- Entry count
+    local countLabel = Instance.new("TextLabel")
+    countLabel.Name = "LogCount"
+    countLabel.Text = "0 entries"
+    countLabel.Font = Theme.Font
+    countLabel.TextSize = 10
+    countLabel.TextColor3 = Theme.SubText
+    countLabel.BackgroundTransparency = 1
+    countLabel.Size = UDim2.new(0, 80, 1, 0)
+    countLabel.Position = UDim2.new(1, -150, 0, 0)
+    countLabel.TextXAlignment = Enum.TextXAlignment.Right
+    countLabel.ZIndex = 3
+    countLabel.Parent = consoleHeader
+
+    -- Clear button
+    local clearBtn = Instance.new("TextButton")
+    clearBtn.Name = "Clear"
+    clearBtn.Text = "Clear"
+    clearBtn.Font = Theme.Font
+    clearBtn.TextSize = 11
+    clearBtn.TextColor3 = Theme.SubText
+    clearBtn.BackgroundColor3 = Theme.ToggleOff
+    clearBtn.BackgroundTransparency = 0.3
+    clearBtn.Size = UDim2.new(0, 50, 0, 20)
+    clearBtn.Position = UDim2.new(1, -58, 0, 4)
+    clearBtn.AutoButtonColor = false
+    clearBtn.ZIndex = 3
+    clearBtn.Parent = consoleHeader
+    Instance.new("UICorner", clearBtn).CornerRadius = UDim.new(0, 4)
+
+    clearBtn.MouseEnter:Connect(function() tween(clearBtn, {BackgroundTransparency = 0.1}, 0.15) end)
+    clearBtn.MouseLeave:Connect(function() tween(clearBtn, {BackgroundTransparency = 0.3}, 0.15) end)
+
+    -- Log scroll area
+    local logScroll = Instance.new("ScrollingFrame")
+    logScroll.Name = "LogScroll"
+    logScroll.BackgroundTransparency = 1
+    logScroll.Size = UDim2.new(1, -8, 1, -34)
+    logScroll.Position = UDim2.new(0, 4, 0, 30)
+    logScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    logScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    logScroll.ScrollBarThickness = 2
+    logScroll.ScrollBarImageColor3 = Theme.Accent
+    logScroll.ScrollBarImageTransparency = 0.5
+    logScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+    logScroll.Parent = consoleHolder
+
+    local logLayout = Instance.new("UIListLayout")
+    logLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    logLayout.Padding = UDim.new(0, 1)
+    logLayout.Parent = logScroll
+
+    local logPad = Instance.new("UIPadding")
+    logPad.PaddingLeft = UDim.new(0, 4)
+    logPad.PaddingRight = UDim.new(0, 4)
+    logPad.PaddingTop = UDim.new(0, 2)
+    logPad.PaddingBottom = UDim.new(0, 4)
+    logPad.Parent = logScroll
+
+    -- Store console refs
+    self._console = {
+        scroll = logScroll,
+        count = 0,
+        countLabel = countLabel,
+    }
+
+    -- Clear handler
+    clearBtn.MouseButton1Click:Connect(function()
+        for _, child in ipairs(logScroll:GetChildren()) do
+            if child:IsA("Frame") then child:Destroy() end
+        end
+        self._console.count = 0
+        countLabel.Text = "0 entries"
+    end)
+
     return Admin
+end
+
+-- ═══════════════════════════════════════════════════
+--  LOG (Console output)
+-- ═══════════════════════════════════════════════════
+function Library:Log(level, message)
+    if not self._console then return end
+    local scroll = self._console.scroll
+
+    local levelColors = {
+        info  = Theme.Text,
+        warn  = Color3.fromRGB(220, 190, 60),
+        error = Color3.fromRGB(220, 70, 70),
+        debug = Color3.fromRGB(120, 180, 220),
+        success = Color3.fromRGB(80, 190, 80),
+    }
+
+    local tagBgColors = {
+        info  = Color3.fromRGB(50, 50, 55),
+        warn  = Color3.fromRGB(70, 60, 20),
+        error = Color3.fromRGB(70, 25, 25),
+        debug = Color3.fromRGB(30, 50, 65),
+        success = Color3.fromRGB(25, 60, 25),
+    }
+
+    level = level or "info"
+    message = message or ""
+    self._console.count = self._console.count + 1
+    local idx = self._console.count
+
+    local row = Instance.new("Frame")
+    row.Name = "Log_" .. idx
+    row.BackgroundColor3 = (idx % 2 == 0) and Theme.Glass or Theme.Background
+    row.BackgroundTransparency = 0.5
+    row.Size = UDim2.new(1, 0, 0, 20)
+    row.LayoutOrder = idx
+    row.Parent = scroll
+    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 3)
+
+    -- Timestamp
+    local timeLabel = Instance.new("TextLabel")
+    timeLabel.Text = os.date("%H:%M:%S")
+    timeLabel.Font = Enum.Font.RobotoMono
+    timeLabel.TextSize = 10
+    timeLabel.TextColor3 = Theme.SubText
+    timeLabel.BackgroundTransparency = 1
+    timeLabel.Size = UDim2.new(0, 52, 1, 0)
+    timeLabel.Position = UDim2.new(0, 4, 0, 0)
+    timeLabel.TextXAlignment = Enum.TextXAlignment.Left
+    timeLabel.Parent = row
+
+    -- Level tag
+    local tagLabel = Instance.new("TextLabel")
+    tagLabel.Text = string.upper(level)
+    tagLabel.Font = Theme.FontBold
+    tagLabel.TextSize = 9
+    tagLabel.TextColor3 = levelColors[level] or Theme.Text
+    tagLabel.BackgroundColor3 = tagBgColors[level] or Theme.Glass
+    tagLabel.BackgroundTransparency = 0.3
+    tagLabel.Size = UDim2.new(0, 48, 0, 14)
+    tagLabel.Position = UDim2.new(0, 60, 0, 3)
+    tagLabel.Parent = row
+    Instance.new("UICorner", tagLabel).CornerRadius = UDim.new(0, 3)
+
+    -- Message
+    local msgLabel = Instance.new("TextLabel")
+    msgLabel.Text = message
+    msgLabel.Font = Enum.Font.RobotoMono
+    msgLabel.TextSize = 11
+    msgLabel.TextColor3 = levelColors[level] or Theme.Text
+    msgLabel.BackgroundTransparency = 1
+    msgLabel.Size = UDim2.new(1, -118, 1, 0)
+    msgLabel.Position = UDim2.new(0, 114, 0, 0)
+    msgLabel.TextXAlignment = Enum.TextXAlignment.Left
+    msgLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    msgLabel.Parent = row
+
+    -- Update count
+    self._console.countLabel.Text = self._console.count .. " entries"
+
+    -- Auto-scroll to bottom
+    task.defer(function()
+        scroll.CanvasPosition = Vector2.new(0, scroll.AbsoluteCanvasSize.Y)
+    end)
 end
 
 -- ═══════════════════════════════════════════════════
