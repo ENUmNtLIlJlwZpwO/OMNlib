@@ -3446,7 +3446,9 @@ function Library:_addLogEntry(level, message, timestamp)
             toclipboard(line)
         end
         tween(rowCopyBtn, {ImageColor3 = Color3.fromRGB(80, 190, 80)}, 0.12)
+        rowCopyBtn.Image = "rbxassetid://7733970796"
         task.delay(0.6, function()
+            rowCopyBtn.Image = "rbxassetid://7733764083"
             tween(rowCopyBtn, {ImageColor3 = Theme.SubText}, 0.15)
         end)
     end)
@@ -3820,15 +3822,18 @@ function Library:ShowChangelog(config)
 
     -- Close button
     local closeBtn = Instance.new("TextButton")
-    closeBtn.Text = "x"
+    closeBtn.Text = "×"
     closeBtn.Font = Theme.Font
-    closeBtn.TextSize = 18
+    closeBtn.TextSize = 22
     closeBtn.TextColor3 = Theme.SubText
     closeBtn.BackgroundTransparency = 1
     closeBtn.Size = UDim2.new(0, 38, 0, 38)
     closeBtn.Position = UDim2.new(1, -38, 0, 0)
     closeBtn.ZIndex = 84
     closeBtn.Parent = header
+
+    closeBtn.MouseEnter:Connect(function() tween(closeBtn, {TextColor3 = Color3.fromRGB(255, 80, 80)}, 0.15) end)
+    closeBtn.MouseLeave:Connect(function() tween(closeBtn, {TextColor3 = Theme.SubText}, 0.15) end)
 
     -- Scrolling content
     local content = Instance.new("ScrollingFrame")
