@@ -2772,6 +2772,38 @@ function Library:AddSettings()
 end
 
 -- ═══════════════════════════════════════════════════
+--  ADMIN PANEL (icon-only, far right before Settings)
+-- ═══════════════════════════════════════════════════
+function Library:AddAdminPanel()
+    local Admin = self:AddCategory("AdminPanel", "rbxassetid://7733955511", {
+        IconOnly = true,
+        LayoutOrder = 9998,
+    })
+
+    -- Push admin tab to far right, before settings
+    local adminTabBtn = self._categories["AdminPanel"].tabBtn
+    adminTabBtn.Parent = self._tabScroll.Parent -- tabBar
+    adminTabBtn.AnchorPoint = Vector2.new(1, 0.5)
+    adminTabBtn.Size = UDim2.new(0, 0, 0, 26)
+    adminTabBtn.AutomaticSize = Enum.AutomaticSize.X
+
+    -- Position depends on whether Settings tab exists
+    local settingsData = self._categories["Settings"]
+    if settingsData and settingsData.tabBtn then
+        local settingsBtn = settingsData.tabBtn
+        adminTabBtn.Position = UDim2.new(1, -6 - settingsBtn.AbsoluteSize.X - 6, 0.5, 0)
+        -- Also update if settings button resizes
+        settingsBtn:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+            adminTabBtn.Position = UDim2.new(1, -6 - settingsBtn.AbsoluteSize.X - 6, 0.5, 0)
+        end)
+    else
+        adminTabBtn.Position = UDim2.new(1, -6, 0.5, 0)
+    end
+
+    return Admin
+end
+
+-- ═══════════════════════════════════════════════════
 --  NOTIFICATION (stacking duplicates)
 -- ═══════════════════════════════════════════════════
 function Library:Notify(config)
