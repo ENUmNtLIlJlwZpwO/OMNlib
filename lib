@@ -3815,14 +3815,13 @@ function Library:_installRemoteMonitorHook()
         end
         return oldNamecall(self2, ...)
     end))
-    end))
 end
 
 function Library:_pushRemoteMonitorEntry(monitor, data)
     if not monitor or not monitor.scroll then return end
 
     local MAX_ROWS = 500
-    local DEDUP_WINDOW = 3 -- seconds
+    local DEDUP_WINDOW = 1 -- seconds
 
     -- Dedup key: same remote + method within DEDUP_WINDOW
     local dedupKey = data.remoteName .. ":" .. data.method
@@ -3833,23 +3832,19 @@ function Library:_pushRemoteMonitorEntry(monitor, data)
         -- Stack duplicate: increment counter
         existing.count = existing.count + 1
         existing.lastTime = now
-        pcall(function()
-            local badge = existing.row:FindFirstChild("StackBadge")
-            if badge then
-                badge.Text = "x" .. existing.count
-                badge.Visible = true
-            end
-        end)
+        local badge = existing.row:FindFirstChild("StackBadge")
+        if badge then
+            badge.Text = "x" .. existing.count
+            badge.Visible = true
+        end
         -- Update counter totals
-        monitor.logCount = (monitor.logCount or 0) + 1
         local eventCounts = monitor.eventCounts or {EVENT = 0, FUNCTION = 0}
         eventCounts[data.eventType] = (eventCounts[data.eventType] or 0) + 1
         monitor.eventCounts = eventCounts
-        pcall(function()
-            if monitor.countLabel then monitor.countLabel.Text = "TOTAL " .. monitor.logCount end
-            if monitor.eventCountLabel then monitor.eventCountLabel.Text = "EVENT " .. (eventCounts.EVENT or 0) end
-            if monitor.funcCountLabel then monitor.funcCountLabel.Text = "FUNC " .. (eventCounts.FUNCTION or 0) end
-        end)
+        monitor.logCount = (monitor.logCount or 0) + 1
+        if monitor.countLabel then monitor.countLabel.Text = "TOTAL " .. monitor.logCount end
+        if monitor.eventCountLabel then monitor.eventCountLabel.Text = "EVENT " .. (eventCounts.EVENT or 0) end
+        if monitor.funcCountLabel then monitor.funcCountLabel.Text = "FUNC " .. (eventCounts.FUNCTION or 0) end
         return
     end
 
