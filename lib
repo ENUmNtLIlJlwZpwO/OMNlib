@@ -2990,9 +2990,9 @@ function Library:_createConsole()
         return btn
     end
 
-    local exportBtn = makeHeaderBtn("Export", "Export", -220)
-    local copyBtn   = makeHeaderBtn("Copy", "Copy", -172)
-    local clearBtn  = makeHeaderBtn("Clear", "Clear", -124)
+    local exportBtn = makeHeaderBtn("Export", "Export", -258)
+    local copyBtn   = makeHeaderBtn("Copy", "Copy", -210)
+    local clearBtn  = makeHeaderBtn("Clear", "Clear", -162)
 
     -- Minimize button (same style as main HUD)
     local minBtn = Instance.new("TextButton")
@@ -3002,8 +3002,8 @@ function Library:_createConsole()
     minBtn.TextSize = 20
     minBtn.TextColor3 = Theme.SubText
     minBtn.BackgroundTransparency = 1
-    minBtn.Size = UDim2.new(0, 32, 0, TITLE_H)
-    minBtn.Position = UDim2.new(1, -100, 0, 0)
+    minBtn.Size = UDim2.new(0, 38, 0, TITLE_H)
+    minBtn.Position = UDim2.new(1, -114, 0, 0)
     minBtn.ZIndex = 62
     minBtn.Parent = titleBar
     minBtn.MouseEnter:Connect(function() tween(minBtn, {TextColor3 = Theme.Accent}, 0.15) end)
@@ -3014,11 +3014,11 @@ function Library:_createConsole()
     maxBtn.Name = "ConsoleMax"
     maxBtn.Text = "□"
     maxBtn.Font = Theme.Font
-    maxBtn.TextSize = 16
+    maxBtn.TextSize = 22
     maxBtn.TextColor3 = Theme.SubText
     maxBtn.BackgroundTransparency = 1
-    maxBtn.Size = UDim2.new(0, 32, 0, TITLE_H)
-    maxBtn.Position = UDim2.new(1, -68, 0, 0)
+    maxBtn.Size = UDim2.new(0, 38, 0, TITLE_H)
+    maxBtn.Position = UDim2.new(1, -76, 0, 0)
     maxBtn.ZIndex = 62
     maxBtn.Parent = titleBar
     maxBtn.MouseEnter:Connect(function() tween(maxBtn, {TextColor3 = Theme.Accent}, 0.15) end)
@@ -3077,13 +3077,13 @@ function Library:_createConsole()
             preMaxPos = consoleFrame.Position
             preMaxSize = consoleFrame.Size
             local vp = workspace.CurrentCamera.ViewportSize
-            tween(consoleFrame, {
-                Size = UDim2.new(0, vp.X - 8, 0, vp.Y - 8),
-                Position = UDim2.new(0, 4, 0, 4),
-            }, 0.3)
             consoleFrame.AnchorPoint = Vector2.new(0, 0)
-            self._console.targetW = vp.X - 8
-            self._console.targetH = vp.Y - 8
+            tween(consoleFrame, {
+                Size = UDim2.new(0, vp.X, 0, vp.Y),
+                Position = UDim2.new(0, 0, 0, 0),
+            }, 0.3)
+            self._console.targetW = vp.X
+            self._console.targetH = vp.Y
         end
     end)
 
@@ -3414,16 +3414,14 @@ function Library:_addLogEntry(level, message, timestamp)
     msgLabel.Parent = row
 
     -- Per-row copy icon (hidden by default, appears on hover)
-    local rowCopyBtn = Instance.new("TextButton")
+    local rowCopyBtn = Instance.new("ImageButton")
     rowCopyBtn.Name = "RowCopy"
-    rowCopyBtn.Text = "📋"
-    rowCopyBtn.Font = Enum.Font.RobotoMono
-    rowCopyBtn.TextSize = 12
-    rowCopyBtn.TextColor3 = Theme.SubText
+    rowCopyBtn.Image = "rbxassetid://7733764083"
+    rowCopyBtn.ImageColor3 = Theme.SubText
     rowCopyBtn.BackgroundTransparency = 1
-    rowCopyBtn.Size = UDim2.new(0, 18, 0, 16)
+    rowCopyBtn.Size = UDim2.new(0, 14, 0, 14)
     rowCopyBtn.AnchorPoint = Vector2.new(1, 0)
-    rowCopyBtn.Position = UDim2.new(1, 18, 0, 0)
+    rowCopyBtn.Position = UDim2.new(1, 18, 0, 1)
     rowCopyBtn.ZIndex = 63
     rowCopyBtn.AutoButtonColor = false
     rowCopyBtn.Visible = false
@@ -3447,9 +3445,9 @@ function Library:_addLogEntry(level, message, timestamp)
         elseif toclipboard then
             toclipboard(line)
         end
-        rowCopyBtn.Text = "✓"
+        tween(rowCopyBtn, {ImageColor3 = Color3.fromRGB(80, 190, 80)}, 0.12)
         task.delay(0.6, function()
-            rowCopyBtn.Text = "📋"
+            tween(rowCopyBtn, {ImageColor3 = Theme.SubText}, 0.15)
         end)
     end)
 
