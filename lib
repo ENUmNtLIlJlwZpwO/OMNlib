@@ -3810,39 +3810,75 @@ function Library:_installRemoteMonitorHook()
         end
         return oldNamecall(self2, ...)
     end))
-
-    local oldIndex
-    oldIndex = hookmetamethod(game, "__index", newcclosure(function(self2, key)
-        if not checkcaller() and type(key) == "string" then
-            local className = ""
-            pcall(function() className = self2.ClassName end)
-            if (className == "RemoteEvent" or className == "RemoteFunction"
-                or className == "UnreliableRemoteEvent")
-                and (key == "FireServer" or key == "InvokeServer" or key == "Fire") then
-                local remoteName = ""
-                pcall(function() remoteName = self2.Name end)
-                local remotePath = ""
-                pcall(function() remotePath = self2:GetFullName() end)
-                for _, monitor in pairs(Library._remoteMonitorSubscribers) do
-                    if monitor and not monitor.paused then
-                        Library:_pushRemoteMonitorEntry(monitor, {
-                            eventType = "FUNCTION",
-                            method = key,
-                            remoteName = remoteName,
-                            remotePath = remotePath,
-                            className = className,
-                            args = {},
-                        })
-                    end
-                end
-            end
-        end
-        return oldIndex(self2, key)
-    end))
 end
 
 function Library:_pushRemoteMonitorEntry(monitor, data)
     if not monitor or not monitor.scroll then return end
+
+    local MAX_ROWS = 500
+    local DEDUP_WINDOW = 1 -- seconds
+
+    -- Dedup key: same remote + method within DEDUP_WINDOW
+    local dedupKey = data.remoteName .. ":" .. data.method
+    local now = tick()
+    monitor._dedupMap = monitor._dedupMap or {}
+    local existing = monitor._dedupMap[dedupKey]
+    if existing and (now - existing.lastTime) < DEDUP_WINDOW and existing.row and existing.row.Parent then
+        -- Stack duplicate: increment counter
+        existing.count = existing.count + 1
+        existing.lastTime = now
+        local badge = existing.row:FindFirstChild("StackBadge")
+        if badge then
+            badge.Text = "x" .. existing.count
+            badge.Visible = true
+        end
+        -- Update counter totals
+        local eventCounts = monitor.eventCounts or {EVENT = 0, FUNCTION = 0}
+        eventCounts[data.eventType] = (eventCounts[data.eventType] or 0) + 1
+        monitor.eventCounts = eventCounts
+        monitor.logCount = (monitor.logCount or 0) + 1
+        if monitor.countLabel then monitor.countLabel.Text = "TOTAL " .. monitor.logCount end
+        if monitor.eventCountLabel then monitor.eventCountLabel.Text = "EVENT " .. (eventCounts.EVENT or 0) end
+        if monitor.funcCountLabel then monitor.funcCountLabel.Text = "FUNC " .. (eventCounts.FUNCTION or 0) end
+        return
+    end
+
+    -- Throttle: batch via task.defer, max one UI update per frame
+    monitor._pendingEntries = monitor._pendingEntries or {}
+    table.insert(monitor._pendingEntries, data)
+    if monitor._flushScheduled then return end
+    monitor._flushScheduled = true
+    task.defer(function()
+        monitor._flushScheduled = false
+        local entries = monitor._pendingEntries
+        monitor._pendingEntries = {}
+        for _, entryData in ipairs(entries) do
+            Library:_flushRemoteMonitorRow(monitor, entryData, MAX_ROWS)
+        end
+        -- Auto-scroll once after batch
+        if not monitor.paused and monitor.scroll then
+            monitor.scroll.CanvasPosition = Vector2.new(0, monitor.scroll.AbsoluteCanvasSize.Y)
+        end
+    end)
+end
+
+function Library:_flushRemoteMonitorRow(monitor, data, MAX_ROWS)
+    if not monitor or not monitor.scroll then return end
+
+    -- Enforce max rows: remove oldest
+    monitor._rowList = monitor._rowList or {}
+    while #monitor._rowList >= MAX_ROWS do
+        local oldest = table.remove(monitor._rowList, 1)
+        if oldest and oldest.Parent then
+            -- Clear dedup ref
+            local dk = oldest:GetAttribute("DedupKey")
+            if dk and monitor._dedupMap and monitor._dedupMap[dk] and monitor._dedupMap[dk].row == oldest then
+                monitor._dedupMap[dk] = nil
+            end
+            oldest:Destroy()
+        end
+    end
+
     monitor.logCount = (monitor.logCount or 0) + 1
     local index = monitor.logCount
 
@@ -3928,13 +3964,35 @@ function Library:_pushRemoteMonitorEntry(monitor, data)
     argsLabel.BackgroundTransparency = 1
     argsLabel.Size = UDim2.new(0, 50, 1, 0)
     argsLabel.AnchorPoint = Vector2.new(1, 0)
-    argsLabel.Position = UDim2.new(1, 0, 0, 0)
+    argsLabel.Position = UDim2.new(1, -30, 0, 0)
     argsLabel.TextXAlignment = Enum.TextXAlignment.Right
     argsLabel.ZIndex = 62
     argsLabel.Parent = row
 
+    -- Stack badge (for dedup)
+    local stackBadge = Instance.new("TextLabel")
+    stackBadge.Name = "StackBadge"
+    stackBadge.Text = "x1"
+    stackBadge.Font = Theme.FontBold
+    stackBadge.TextSize = 9
+    stackBadge.TextColor3 = Theme.Accent
+    stackBadge.BackgroundTransparency = 1
+    stackBadge.Size = UDim2.new(0, 26, 1, 0)
+    stackBadge.AnchorPoint = Vector2.new(1, 0)
+    stackBadge.Position = UDim2.new(1, 0, 0, 0)
+    stackBadge.TextXAlignment = Enum.TextXAlignment.Right
+    stackBadge.ZIndex = 62
+    stackBadge.Visible = false
+    stackBadge.Parent = row
+
+    -- Register dedup entry
+    local dedupKey = data.remoteName .. ":" .. data.method
+    row:SetAttribute("DedupKey", dedupKey)
+    monitor._dedupMap = monitor._dedupMap or {}
+    monitor._dedupMap[dedupKey] = {row = row, count = 1, lastTime = tick()}
+
     -- Copy full line on click
-    local fullLine = "[" .. os.date("%H:%M:%S") .. "] [" .. data.eventType .. "] " .. data.remotePath .. ":" .. data.method .. " (" .. argCount .. " args)"
+    local fullLine = "[" .. os.date("%H:%M:%S") .. "] [" .. data.eventType .. "] " .. (data.remotePath or "") .. ":" .. data.method .. " (" .. argCount .. " args)"
     row.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             if setclipboard then
@@ -3954,9 +4012,11 @@ function Library:_pushRemoteMonitorEntry(monitor, data)
 
     -- Store entry data for filtering
     row:SetAttribute("EventType", data.eventType)
-    row:SetAttribute("SearchText", string.lower(data.remoteName .. " " .. data.method .. " " .. data.remotePath))
+    row:SetAttribute("SearchText", string.lower(data.remoteName .. " " .. data.method .. " " .. (data.remotePath or "")))
 
-    -- Update counter
+    table.insert(monitor._rowList, row)
+
+    -- Update counters
     if monitor.countLabel then
         monitor.countLabel.Text = "TOTAL " .. monitor.logCount
     end
@@ -3974,15 +4034,6 @@ function Library:_pushRemoteMonitorEntry(monitor, data)
     -- Apply current filters
     if monitor.applyFilters then
         monitor.applyFilters()
-    end
-
-    -- Auto-scroll
-    if not monitor.paused then
-        task.defer(function()
-            if monitor.scroll then
-                monitor.scroll.CanvasPosition = Vector2.new(0, monitor.scroll.AbsoluteCanvasSize.Y)
-            end
-        end)
     end
 end
 
@@ -4509,6 +4560,9 @@ function Library:_createRemoteMonitor()
         end
         monitor.logCount = 0
         monitor.eventCounts = {EVENT = 0, FUNCTION = 0}
+        monitor._dedupMap = {}
+        monitor._rowList = {}
+        monitor._pendingEntries = {}
         totalCountLabel.Text = "TOTAL 0"
         eventCountLabel.Text = "EVENT 0"
         funcCountLabel.Text = "FUNC 0"
