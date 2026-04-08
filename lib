@@ -2458,6 +2458,23 @@ function Library:_refreshAccent(c)
             updateChildren(col)
         end
     end
+
+    -- Update console scale slider accent
+    if self._console and self._console.frame then
+        local sb = self._console.frame:FindFirstChild("ScaleBar")
+        if sb then
+            local st = sb:FindFirstChild("ScaleTrack")
+            if st then
+                local sf = st:FindFirstChild("ScaleFill")
+                if sf then sf.BackgroundColor3 = c end
+                local sk = sf and sf:FindFirstChild("ScaleKnob")
+                if sk then sk.BackgroundColor3 = c end
+            end
+        end
+        if self._console.scroll then
+            self._console.scroll.ScrollBarImageColor3 = c
+        end
+    end
 end
 
 function Library:_refreshGlass()
@@ -2554,6 +2571,52 @@ function Library:_refreshGlass()
     if titleBar then
         titleBar.BackgroundColor3 = Theme.Glass
     end
+
+    -- Update console window (if exists)
+    if self._console then
+        local cf = self._console.frame
+        if cf then
+            cf.BackgroundColor3 = Theme.Background
+            local ctb = cf:FindFirstChild("ConsoleTitleBar")
+            if ctb then
+                ctb.BackgroundColor3 = Theme.Glass
+                local ct = ctb:FindFirstChild("ConsoleTitle")
+                if ct then ct.TextColor3 = Theme.Text end
+            end
+            local sb = cf:FindFirstChild("ScaleBar")
+            if sb then
+                sb.BackgroundColor3 = Theme.Glass
+                local st = sb:FindFirstChild("ScaleTrack")
+                if st then st.BackgroundColor3 = Theme.ToggleOff end
+            end
+            -- Update header button backgrounds
+            for _, btnName in ipairs({"Export", "Copy", "Clear"}) do
+                local b = ctb and ctb:FindFirstChild(btnName)
+                if b then
+                    b.BackgroundColor3 = Theme.ToggleOff
+                    b.TextColor3 = Theme.SubText
+                end
+            end
+            local cls = ctb and ctb:FindFirstChild("ConsoleClose")
+            if cls then cls.TextColor3 = Theme.SubText end
+            -- Update log row alternating bg (Glass/Background)
+            local scroll = self._console.scroll
+            if scroll then
+                scroll.ScrollBarImageColor3 = Theme.Accent
+                for _, child in ipairs(scroll:GetChildren()) do
+                    if child:IsA("Frame") and child.Name:sub(1, 4) == "Log_" then
+                        local num = tonumber(child.Name:sub(5))
+                        if num then
+                            child.BackgroundColor3 = (num % 2 == 0) and Theme.Glass or Theme.Background
+                        end
+                    end
+                end
+            end
+            -- Resize handle
+            local rh = cf:FindFirstChild("ResizeHandle")
+            if rh then rh.TextColor3 = Theme.SubText end
+        end
+    end
 end
 
 function Library:_refreshTextColor(c)
@@ -2564,7 +2627,9 @@ function Library:_refreshTextColor(c)
         math.floor(c.B * 255 * 0.55 + 0.5)
     )
     for _, desc in ipairs(self.ScreenGui:GetDescendants()) do
-        if desc:IsA("TextLabel") and desc.Name ~= "Check" and desc.Name ~= "Count" then
+        if desc:IsA("TextLabel") and desc.Name ~= "Check" and desc.Name ~= "Count"
+            and desc.Name ~= "LogTime" and desc.Name ~= "LogTag" and desc.Name ~= "LogMsg"
+            and desc.Name ~= "InfoCount" and desc.Name ~= "WarnCount" and desc.Name ~= "ErrorCount" then
             desc.TextColor3 = c
         end
     end
@@ -2816,7 +2881,12 @@ end
 --  FLOATING CONSOLE WINDOW
 -- ═══════════════════════════════════════════════════
 function Library:_createConsole()
-    local W, H = 520, 320
+    local W, H = 520, 340
+    local MIN_W, MIN_H = 360, 200
+    local MAX_W, MAX_H = 900, 600
+    local TITLE_H = 32
+    local STATS_H = 22
+    local RESIZE_ZONE = 8
 
     local consoleFrame = Instance.new("Frame")
     consoleFrame.Name = "ConsoleWindow"
@@ -2836,57 +2906,73 @@ function Library:_createConsole()
     titleBar.Name = "ConsoleTitleBar"
     titleBar.BackgroundColor3 = Theme.Glass
     titleBar.BackgroundTransparency = 0.3
-    titleBar.Size = UDim2.new(1, 0, 0, 32)
+    titleBar.Size = UDim2.new(1, 0, 0, TITLE_H)
     titleBar.ZIndex = 61
     titleBar.Parent = consoleFrame
     Instance.new("UICorner", titleBar).CornerRadius = Theme.CornerRadius
 
     local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "ConsoleTitle"
     titleLabel.Text = "Console — F9 Output"
     titleLabel.Font = Theme.FontBold
     titleLabel.TextSize = 12
     titleLabel.TextColor3 = Theme.Text
     titleLabel.BackgroundTransparency = 1
-    titleLabel.Size = UDim2.new(1, -120, 1, 0)
+    titleLabel.Size = UDim2.new(0, 130, 1, 0)
     titleLabel.Position = UDim2.new(0, 12, 0, 0)
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.ZIndex = 62
     titleLabel.Parent = titleBar
 
-    -- Entry count
-    local countLabel = Instance.new("TextLabel")
-    countLabel.Name = "LogCount"
-    countLabel.Text = "0"
-    countLabel.Font = Theme.Font
-    countLabel.TextSize = 10
-    countLabel.TextColor3 = Theme.SubText
-    countLabel.BackgroundTransparency = 1
-    countLabel.Size = UDim2.new(0, 40, 1, 0)
-    countLabel.Position = UDim2.new(1, -115, 0, 0)
-    countLabel.TextXAlignment = Enum.TextXAlignment.Right
-    countLabel.ZIndex = 62
-    countLabel.Parent = titleBar
+    -- ── Level counters next to title ──
+    local function makeStatLabel(name, text, color, posX)
+        local lbl = Instance.new("TextLabel")
+        lbl.Name = name
+        lbl.Text = text
+        lbl.Font = Enum.Font.RobotoMono
+        lbl.TextSize = 10
+        lbl.TextColor3 = color
+        lbl.BackgroundTransparency = 1
+        lbl.Size = UDim2.new(0, 60, 1, 0)
+        lbl.Position = UDim2.new(0, posX, 0, 0)
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.ZIndex = 62
+        lbl.Parent = titleBar
+        return lbl
+    end
 
-    -- Clear button
-    local clearBtn = Instance.new("TextButton")
-    clearBtn.Text = "Clear"
-    clearBtn.Font = Theme.Font
-    clearBtn.TextSize = 11
-    clearBtn.TextColor3 = Theme.SubText
-    clearBtn.BackgroundColor3 = Theme.ToggleOff
-    clearBtn.BackgroundTransparency = 0.3
-    clearBtn.Size = UDim2.new(0, 44, 0, 20)
-    clearBtn.Position = UDim2.new(1, -76, 0, 6)
-    clearBtn.AutoButtonColor = false
-    clearBtn.ZIndex = 62
-    clearBtn.Parent = titleBar
-    Instance.new("UICorner", clearBtn).CornerRadius = UDim.new(0, 4)
+    local infoCountLabel = makeStatLabel("InfoCount", "0 info", Theme.Text, 150)
+    local warnCountLabel = makeStatLabel("WarnCount", "0 warn", Color3.fromRGB(220, 190, 60), 212)
+    local errorCountLabel = makeStatLabel("ErrorCount", "0 err", Color3.fromRGB(220, 70, 70), 274)
 
-    clearBtn.MouseEnter:Connect(function() tween(clearBtn, {BackgroundTransparency = 0.1}, 0.15) end)
-    clearBtn.MouseLeave:Connect(function() tween(clearBtn, {BackgroundTransparency = 0.3}, 0.15) end)
+    -- ── Action buttons (right side of title bar) ──
+    local function makeHeaderBtn(name, text, posFromRight)
+        local btn = Instance.new("TextButton")
+        btn.Name = name
+        btn.Text = text
+        btn.Font = Theme.Font
+        btn.TextSize = 11
+        btn.TextColor3 = Theme.SubText
+        btn.BackgroundColor3 = Theme.ToggleOff
+        btn.BackgroundTransparency = 0.3
+        btn.Size = UDim2.new(0, 44, 0, 20)
+        btn.Position = UDim2.new(1, posFromRight, 0, 6)
+        btn.AutoButtonColor = false
+        btn.ZIndex = 62
+        btn.Parent = titleBar
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+        btn.MouseEnter:Connect(function() tween(btn, {BackgroundTransparency = 0.1}, 0.15) end)
+        btn.MouseLeave:Connect(function() tween(btn, {BackgroundTransparency = 0.3}, 0.15) end)
+        return btn
+    end
+
+    local exportBtn = makeHeaderBtn("Export", "Export", -176)
+    local copyBtn   = makeHeaderBtn("Copy", "Copy", -128)
+    local clearBtn  = makeHeaderBtn("Clear", "Clear", -80)
 
     -- Close button
     local closeBtn = Instance.new("TextButton")
+    closeBtn.Name = "ConsoleClose"
     closeBtn.Text = "x"
     closeBtn.Font = Theme.Font
     closeBtn.TextSize = 18
@@ -2930,12 +3016,163 @@ function Library:_createConsole()
         end
     end)
 
+    -- ── Scale slider bar ──
+    local scaleBar = Instance.new("Frame")
+    scaleBar.Name = "ScaleBar"
+    scaleBar.BackgroundColor3 = Theme.Glass
+    scaleBar.BackgroundTransparency = 0.3
+    scaleBar.Size = UDim2.new(1, 0, 0, STATS_H)
+    scaleBar.Position = UDim2.new(0, 0, 0, TITLE_H)
+    scaleBar.ZIndex = 61
+    scaleBar.Parent = consoleFrame
+
+    local scaleLbl = Instance.new("TextLabel")
+    scaleLbl.Text = "Scale"
+    scaleLbl.Font = Theme.Font
+    scaleLbl.TextSize = 10
+    scaleLbl.TextColor3 = Theme.SubText
+    scaleLbl.BackgroundTransparency = 1
+    scaleLbl.Size = UDim2.new(0, 34, 1, 0)
+    scaleLbl.Position = UDim2.new(0, 8, 0, 0)
+    scaleLbl.TextXAlignment = Enum.TextXAlignment.Left
+    scaleLbl.ZIndex = 62
+    scaleLbl.Parent = scaleBar
+
+    local scaleTrack = Instance.new("Frame")
+    scaleTrack.Name = "ScaleTrack"
+    scaleTrack.BackgroundColor3 = Theme.ToggleOff
+    scaleTrack.Size = UDim2.new(1, -90, 0, 4)
+    scaleTrack.Position = UDim2.new(0, 44, 0.5, -2)
+    scaleTrack.ZIndex = 62
+    scaleTrack.Parent = scaleBar
+    Instance.new("UICorner", scaleTrack).CornerRadius = UDim.new(0, 2)
+
+    local scaleFill = Instance.new("Frame")
+    scaleFill.Name = "ScaleFill"
+    scaleFill.BackgroundColor3 = Theme.Accent
+    scaleFill.Size = UDim2.new(0.5, 0, 1, 0)
+    scaleFill.ZIndex = 63
+    scaleFill.Parent = scaleTrack
+    Instance.new("UICorner", scaleFill).CornerRadius = UDim.new(0, 2)
+
+    local scaleKnob = Instance.new("Frame")
+    scaleKnob.Name = "ScaleKnob"
+    scaleKnob.BackgroundColor3 = Theme.Accent
+    scaleKnob.Size = UDim2.new(0, 10, 0, 10)
+    scaleKnob.AnchorPoint = Vector2.new(0.5, 0.5)
+    scaleKnob.Position = UDim2.new(0.5, 0, 0.5, 0)
+    scaleKnob.ZIndex = 64
+    scaleKnob.Parent = scaleFill
+    Instance.new("UICorner", scaleKnob).CornerRadius = UDim.new(1, 0)
+
+    local scaleVal = Instance.new("TextLabel")
+    scaleVal.Name = "ScaleVal"
+    scaleVal.Text = "100%"
+    scaleVal.Font = Enum.Font.RobotoMono
+    scaleVal.TextSize = 10
+    scaleVal.TextColor3 = Theme.SubText
+    scaleVal.BackgroundTransparency = 1
+    scaleVal.Size = UDim2.new(0, 38, 1, 0)
+    scaleVal.Position = UDim2.new(1, -44, 0, 0)
+    scaleVal.TextXAlignment = Enum.TextXAlignment.Right
+    scaleVal.ZIndex = 62
+    scaleVal.Parent = scaleBar
+
+    -- Scale slider logic  (0.5 → 1.5 mapped to MIN→MAX)
+    local currentScale = 1.0
+    local function applyScale(s)
+        currentScale = math.clamp(s, 0.5, 1.5)
+        local newW = math.clamp(math.floor(W * currentScale), MIN_W, MAX_W)
+        local newH = math.clamp(math.floor(H * currentScale), MIN_H, MAX_H)
+        consoleFrame.Size = UDim2.new(0, newW, 0, newH)
+        self._console.targetH = newH
+        self._console.targetW = newW
+        local ratio = (currentScale - 0.5) / 1.0
+        scaleFill.Size = UDim2.new(ratio, 0, 1, 0)
+        scaleVal.Text = math.floor(currentScale * 100 + 0.5) .. "%"
+    end
+
+    local scaleDragging = false
+    local function updateScaleFromInput(input)
+        local trackAbs = scaleTrack.AbsolutePosition
+        local trackW = scaleTrack.AbsoluteSize.X
+        local rel = math.clamp((input.Position.X - trackAbs.X) / trackW, 0, 1)
+        applyScale(0.5 + rel * 1.0)
+    end
+
+    scaleTrack.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            scaleDragging = true
+            updateScaleFromInput(input)
+        end
+    end)
+    scaleKnob.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            scaleDragging = true
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if scaleDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            updateScaleFromInput(input)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            scaleDragging = false
+        end
+    end)
+
+    -- ── Edge resize (bottom-right corner drag) ──
+    local resizeHandle = Instance.new("TextButton")
+    resizeHandle.Name = "ResizeHandle"
+    resizeHandle.Text = "◢"
+    resizeHandle.Font = Enum.Font.RobotoMono
+    resizeHandle.TextSize = 12
+    resizeHandle.TextColor3 = Theme.SubText
+    resizeHandle.BackgroundTransparency = 1
+    resizeHandle.Size = UDim2.new(0, 16, 0, 16)
+    resizeHandle.AnchorPoint = Vector2.new(1, 1)
+    resizeHandle.Position = UDim2.new(1, 0, 1, 0)
+    resizeHandle.ZIndex = 63
+    resizeHandle.AutoButtonColor = false
+    resizeHandle.Parent = consoleFrame
+
+    local resizing = false
+    local resizeStart, resizeSizeStart
+    resizeHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            resizing = true
+            resizeStart = input.Position
+            resizeSizeStart = Vector2.new(consoleFrame.AbsoluteSize.X, consoleFrame.AbsoluteSize.Y)
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then resizing = false end
+            end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if resizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - resizeStart
+            local newW2 = math.clamp(resizeSizeStart.X + delta.X, MIN_W, MAX_W)
+            local newH2 = math.clamp(resizeSizeStart.Y + delta.Y, MIN_H, MAX_H)
+            consoleFrame.Size = UDim2.new(0, newW2, 0, newH2)
+            self._console.targetH = newH2
+            self._console.targetW = newW2
+            -- Sync scale slider visual
+            local s = newW2 / W
+            currentScale = math.clamp(s, 0.5, 1.5)
+            local ratio = (currentScale - 0.5) / 1.0
+            scaleFill.Size = UDim2.new(math.clamp(ratio, 0, 1), 0, 1, 0)
+            scaleVal.Text = math.floor(currentScale * 100 + 0.5) .. "%"
+        end
+    end)
+
     -- ── Log scroll area ──
+    local scrollTop = TITLE_H + STATS_H + 2
     local logScroll = Instance.new("ScrollingFrame")
     logScroll.Name = "LogScroll"
     logScroll.BackgroundTransparency = 1
-    logScroll.Size = UDim2.new(1, -8, 1, -38)
-    logScroll.Position = UDim2.new(0, 4, 0, 34)
+    logScroll.Size = UDim2.new(1, -8, 1, -(scrollTop + 4))
+    logScroll.Position = UDim2.new(0, 4, 0, scrollTop)
     logScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
     logScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
     logScroll.ScrollBarThickness = 2
@@ -2962,10 +3199,29 @@ function Library:_createConsole()
         frame = consoleFrame,
         scroll = logScroll,
         count = 0,
-        countLabel = countLabel,
+        infoCount = 0,
+        warnCount = 0,
+        errorCount = 0,
+        infoCountLabel = infoCountLabel,
+        warnCountLabel = warnCountLabel,
+        errorCountLabel = errorCountLabel,
         open = false,
         targetH = H,
+        targetW = W,
+        logEntries = {},
+        titleBar = titleBar,
+        scaleBar = scaleBar,
+        resizeHandle = resizeHandle,
     }
+
+    -- ── Helper: collect all logs as text ──
+    local function collectLogText()
+        local lines = {}
+        for _, entry in ipairs(self._console.logEntries) do
+            table.insert(lines, string.format("[%s] [%s] %s", entry.time, string.upper(entry.level), entry.msg))
+        end
+        return table.concat(lines, "\n")
+    end
 
     -- Clear handler
     clearBtn.MouseButton1Click:Connect(function()
@@ -2973,7 +3229,38 @@ function Library:_createConsole()
             if child:IsA("Frame") then child:Destroy() end
         end
         self._console.count = 0
-        countLabel.Text = "0"
+        self._console.infoCount = 0
+        self._console.warnCount = 0
+        self._console.errorCount = 0
+        self._console.logEntries = {}
+        self:_updateConsoleCounts()
+    end)
+
+    -- Copy handler
+    copyBtn.MouseButton1Click:Connect(function()
+        local text = collectLogText()
+        if setclipboard then
+            setclipboard(text)
+        elseif toclipboard then
+            toclipboard(text)
+        end
+        tween(copyBtn, {TextColor3 = Color3.fromRGB(80, 190, 80)}, 0.15)
+        task.delay(0.8, function()
+            tween(copyBtn, {TextColor3 = Theme.SubText}, 0.15)
+        end)
+    end)
+
+    -- Export handler (writefile to executor workspace)
+    exportBtn.MouseButton1Click:Connect(function()
+        local text = collectLogText()
+        local fileName = "console_" .. os.date("%Y%m%d_%H%M%S") .. ".log"
+        if writefile then
+            writefile(fileName, text)
+        end
+        tween(exportBtn, {TextColor3 = Color3.fromRGB(80, 190, 80)}, 0.15)
+        task.delay(0.8, function()
+            tween(exportBtn, {TextColor3 = Theme.SubText}, 0.15)
+        end)
     end)
 
     -- ── Hook LogService (real F9 output) ──
@@ -3002,12 +3289,21 @@ function Library:_createConsole()
     tween(consoleFrame, {Size = UDim2.new(0, W, 0, H)}, 0.35)
 end
 
+function Library:_updateConsoleCounts()
+    if not self._console then return end
+    local c = self._console
+    c.infoCountLabel.Text = c.infoCount .. " info"
+    c.warnCountLabel.Text = c.warnCount .. " warn"
+    c.errorCountLabel.Text = c.errorCount .. " err"
+end
+
 function Library:_addLogEntry(level, message, timestamp)
     if not self._console then return end
     local scroll = self._console.scroll
 
+    -- Fixed log text colors (not theme-dependent)
     local levelColors = {
-        info    = Theme.Text,
+        info    = Color3.fromRGB(200, 200, 200),
         warn    = Color3.fromRGB(220, 190, 60),
         error   = Color3.fromRGB(220, 70, 70),
     }
@@ -3020,6 +3316,24 @@ function Library:_addLogEntry(level, message, timestamp)
 
     self._console.count = self._console.count + 1
     local idx = self._console.count
+
+    -- Update per-level counters
+    if level == "info" then
+        self._console.infoCount = self._console.infoCount + 1
+    elseif level == "warn" then
+        self._console.warnCount = self._console.warnCount + 1
+    elseif level == "error" then
+        self._console.errorCount = self._console.errorCount + 1
+    end
+    self:_updateConsoleCounts()
+
+    -- Store for export/copy
+    local timeStr = timestamp and os.date("%H:%M:%S", timestamp) or os.date("%H:%M:%S")
+    table.insert(self._console.logEntries, {
+        time = timeStr,
+        level = level,
+        msg = message or "",
+    })
 
     local row = Instance.new("Frame")
     row.Name = "Log_" .. idx
@@ -3039,12 +3353,12 @@ function Library:_addLogEntry(level, message, timestamp)
     rowPad.Parent = row
 
     -- Timestamp
-    local timeStr = timestamp and os.date("%H:%M:%S", timestamp) or os.date("%H:%M:%S")
     local timeLabel = Instance.new("TextLabel")
+    timeLabel.Name = "LogTime"
     timeLabel.Text = timeStr
     timeLabel.Font = Enum.Font.RobotoMono
     timeLabel.TextSize = 10
-    timeLabel.TextColor3 = Theme.SubText
+    timeLabel.TextColor3 = Color3.fromRGB(140, 140, 140)
     timeLabel.BackgroundTransparency = 1
     timeLabel.Size = UDim2.new(0, 52, 0, 16)
     timeLabel.Position = UDim2.new(0, 0, 0, 0)
@@ -3054,11 +3368,12 @@ function Library:_addLogEntry(level, message, timestamp)
 
     -- Level tag
     local tagLabel = Instance.new("TextLabel")
+    tagLabel.Name = "LogTag"
     tagLabel.Text = string.upper(level)
     tagLabel.Font = Theme.FontBold
     tagLabel.TextSize = 9
-    tagLabel.TextColor3 = levelColors[level] or Theme.Text
-    tagLabel.BackgroundColor3 = tagBgColors[level] or Theme.Glass
+    tagLabel.TextColor3 = levelColors[level] or Color3.fromRGB(200, 200, 200)
+    tagLabel.BackgroundColor3 = tagBgColors[level] or Color3.fromRGB(50, 50, 55)
     tagLabel.BackgroundTransparency = 0.3
     tagLabel.Size = UDim2.new(0, 40, 0, 14)
     tagLabel.Position = UDim2.new(0, 56, 0, 1)
@@ -3066,12 +3381,13 @@ function Library:_addLogEntry(level, message, timestamp)
     tagLabel.Parent = row
     Instance.new("UICorner", tagLabel).CornerRadius = UDim.new(0, 3)
 
-    -- Message
+    -- Message (fixed colors, not theme)
     local msgLabel = Instance.new("TextLabel")
+    msgLabel.Name = "LogMsg"
     msgLabel.Text = message or ""
     msgLabel.Font = Enum.Font.RobotoMono
     msgLabel.TextSize = 11
-    msgLabel.TextColor3 = levelColors[level] or Theme.Text
+    msgLabel.TextColor3 = levelColors[level] or Color3.fromRGB(200, 200, 200)
     msgLabel.BackgroundTransparency = 1
     msgLabel.Size = UDim2.new(1, -106, 0, 0)
     msgLabel.AutomaticSize = Enum.AutomaticSize.Y
@@ -3080,9 +3396,6 @@ function Library:_addLogEntry(level, message, timestamp)
     msgLabel.TextWrapped = true
     msgLabel.ZIndex = 62
     msgLabel.Parent = row
-
-    -- Update count
-    self._console.countLabel.Text = tostring(self._console.count)
 
     -- Auto-scroll to bottom
     task.defer(function()
@@ -3108,7 +3421,7 @@ function Library:_toggleConsole()
     else
         con.open = true
         con.frame.Visible = true
-        tween(con.frame, {Size = UDim2.new(0, con.frame.Size.X.Offset, 0, con.targetH)}, 0.3)
+        tween(con.frame, {Size = UDim2.new(0, con.targetW or con.frame.Size.X.Offset, 0, con.targetH)}, 0.3)
     end
 end
 
