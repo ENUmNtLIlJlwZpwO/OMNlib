@@ -2780,24 +2780,19 @@ function Library:AddAdminPanel()
         LayoutOrder = 9998,
     })
 
-    -- Push admin tab to far right, before settings
+    -- Push admin tab to far right, just left of settings
     local adminTabBtn = self._categories["AdminPanel"].tabBtn
     adminTabBtn.Parent = self._tabScroll.Parent -- tabBar
     adminTabBtn.AnchorPoint = Vector2.new(1, 0.5)
     adminTabBtn.Size = UDim2.new(0, 0, 0, 26)
     adminTabBtn.AutomaticSize = Enum.AutomaticSize.X
+    -- Icon-only btn = ~26px wide; settings at offset -6, admin at -6 -26 -6 = -38
+    adminTabBtn.Position = UDim2.new(1, -38, 0.5, 0)
 
-    -- Position depends on whether Settings tab exists
+    -- Shift settings tab further right to make room
     local settingsData = self._categories["Settings"]
     if settingsData and settingsData.tabBtn then
-        local settingsBtn = settingsData.tabBtn
-        adminTabBtn.Position = UDim2.new(1, -6 - settingsBtn.AbsoluteSize.X - 6, 0.5, 0)
-        -- Also update if settings button resizes
-        settingsBtn:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-            adminTabBtn.Position = UDim2.new(1, -6 - settingsBtn.AbsoluteSize.X - 6, 0.5, 0)
-        end)
-    else
-        adminTabBtn.Position = UDim2.new(1, -6, 0.5, 0)
+        settingsData.tabBtn.Position = UDim2.new(1, -6, 0.5, 0)
     end
 
     return Admin
