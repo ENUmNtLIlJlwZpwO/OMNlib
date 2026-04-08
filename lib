@@ -2466,6 +2466,10 @@ function Library:_refreshAccent(c)
             self._console.scroll.ScrollBarImageColor3 = c
         end
     end
+
+    if self._stringDumper and self._stringDumper.scroll then
+        self._stringDumper.scroll.ScrollBarImageColor3 = c
+    end
 end
 
 function Library:_refreshGlass()
@@ -2627,6 +2631,63 @@ function Library:_refreshGlass()
             end
             -- Resize handle
             local rh = cf:FindFirstChild("ResizeHandle")
+            if rh then
+                rh.BackgroundColor3 = Theme.Glass
+                for _, grip in ipairs(rh:GetChildren()) do
+                    if grip:IsA("Frame") and grip.Name:sub(1, 4) == "Grip" then
+                        grip.BackgroundColor3 = Theme.SubText
+                    end
+                end
+            end
+        end
+    end
+
+    -- Update string dumper window (if exists)
+    if self._stringDumper then
+        local df = self._stringDumper.frame
+        if df then
+            df.BackgroundColor3 = Theme.Background
+            local dtb = df:FindFirstChild("StringDumpTitleBar")
+            if dtb then
+                dtb.BackgroundColor3 = Theme.Glass
+                local dt = dtb:FindFirstChild("StringDumpTitle")
+                if dt then dt.TextColor3 = Theme.Text end
+            end
+            for _, btnName in ipairs({"Scan", "Export", "Copy", "Clear"}) do
+                local b = dtb and dtb:FindFirstChild(btnName)
+                if b and not b:GetAttribute("Hovered") then
+                    b.BackgroundColor3 = Theme.ToggleOff
+                    b.TextColor3 = Theme.SubText
+                    b.BackgroundTransparency = 0.3
+                end
+            end
+            for _, btnName in ipairs({"StringDumpClose", "StringDumpMin", "StringDumpMax"}) do
+                local b = dtb and dtb:FindFirstChild(btnName)
+                if b then b.TextColor3 = Theme.SubText end
+            end
+            local tb = df:FindFirstChild("StringDumpToolbar")
+            if tb then
+                tb.BackgroundColor3 = Theme.Glass
+                local sb = tb:FindFirstChild("SearchBox")
+                if sb then
+                    sb.BackgroundColor3 = Theme.Background
+                    sb.TextColor3 = Theme.Text
+                    sb.PlaceholderColor3 = Theme.SubText
+                end
+            end
+            local scroll = self._stringDumper.scroll
+            if scroll then
+                scroll.ScrollBarImageColor3 = Theme.Accent
+                for _, child in ipairs(scroll:GetChildren()) do
+                    if child:IsA("Frame") and child.Name:sub(1, 5) == "Dump_" then
+                        local num = tonumber(child.Name:sub(6))
+                        if num then
+                            child.BackgroundColor3 = (num % 2 == 0) and Theme.Glass or Theme.Background
+                        end
+                    end
+                end
+            end
+            local rh = df:FindFirstChild("StringDumpResizeHandle")
             if rh then
                 rh.BackgroundColor3 = Theme.Glass
                 for _, grip in ipairs(rh:GetChildren()) do
@@ -2903,44 +2964,7 @@ function Library:AddAdminPanel()
     ToolsGroup:AddButton({
         Text = "String Dumper",
         Callback = function()
-            if type(getgc) ~= "function" then
-                notifyAdmin("String Dumper unavailable: getgc missing", 4)
-                return
-            end
-            if type(writefile) ~= "function" then
-                notifyAdmin("String Dumper unavailable: writefile missing", 4)
-                return
-            end
-
-            local ok, result = pcall(function()
-                local strings = {}
-                local seen = {}
-
-                for _, value in next, getgc(true) do
-                    if type(value) == "table" then
-                        for key, innerValue in next, value do
-                            if type(key) == "string" and (type(innerValue) == "number" or type(innerValue) == "boolean") then
-                                local line = "String: " .. key .. " | Value: " .. tostring(innerValue) .. " | Type: " .. type(innerValue)
-                                if not seen[line] then
-                                    seen[line] = true
-                                    table.insert(strings, line)
-                                end
-                            end
-                        end
-                    end
-                end
-
-                table.sort(strings)
-                writefile("StringDumped.lua", table.concat(strings, "\n"))
-                return #strings
-            end)
-
-            if ok then
-                notifyAdmin("String dump saved: " .. tostring(result) .. " entries", 4)
-            else
-                notifyAdmin("String dump failed", 4)
-                warn("[GlassUI] String Dumper error:", result)
-            end
+            libSelf:_toggleStringDumper()
         end,
     })
 
@@ -2957,6 +2981,738 @@ function Library:AddAdminPanel()
     })
 
     return Admin
+end
+
+function Library:_collectStringDumpData()
+    if type(getgc) ~= "function" then
+        return nil, "getgc missing"
+    end
+
+    local entries = {}
+    local seen = {}
+
+    for _, value in next, getgc(true) do
+        if type(value) == "table" then
+            for key, innerValue in next, value do
+                local valueType = type(innerValue)
+                if type(key) == "string" and (valueType == "number" or valueType == "boolean") then
+                    local line = "String: " .. key .. " | Value: " .. tostring(innerValue) .. " | Type: " .. valueType
+                    if not seen[line] then
+                        seen[line] = true
+                        table.insert(entries, {
+                            key = key,
+                            value = tostring(innerValue),
+                            valueType = valueType,
+                            line = line,
+                        })
+                    end
+                end
+            end
+        end
+    end
+
+    table.sort(entries, function(a, b)
+        if a.key == b.key then
+            return a.line < b.line
+        end
+        return a.key < b.key
+    end)
+
+    return entries
+end
+
+function Library:_createStringDumper()
+    local W, H = 560, 360
+    local MIN_W, MIN_H = 400, 220
+    local TITLE_H = 32
+    local TOOLBAR_H = 28
+
+    local mainPos = self.Main.AbsolutePosition
+    local mainSize = self.Main.AbsoluteSize
+    local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
+    local dumpX = mainPos.X + mainSize.X + 10
+    if dumpX + W > viewport.X - 4 then
+        dumpX = math.max(mainPos.X - W - 10, 4)
+    end
+
+    local dumpFrame = Instance.new("Frame")
+    dumpFrame.Name = "StringDumperWindow"
+    dumpFrame.BackgroundColor3 = Theme.Background
+    dumpFrame.BackgroundTransparency = 0.05
+    dumpFrame.Size = UDim2.new(0, W, 0, 0)
+    dumpFrame.Position = UDim2.new(0, dumpX, 0.5, 0)
+    dumpFrame.AnchorPoint = Vector2.new(0, 0.5)
+    dumpFrame.ClipsDescendants = true
+    dumpFrame.ZIndex = 60
+    dumpFrame.Parent = self.ScreenGui
+    applyGlass(dumpFrame)
+    addShadow(dumpFrame)
+
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "StringDumpTitleBar"
+    titleBar.BackgroundColor3 = Theme.Glass
+    titleBar.BackgroundTransparency = 0.3
+    titleBar.Size = UDim2.new(1, 0, 0, TITLE_H)
+    titleBar.ZIndex = 61
+    titleBar.Parent = dumpFrame
+    Instance.new("UICorner", titleBar).CornerRadius = Theme.CornerRadius
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "StringDumpTitle"
+    titleLabel.Text = "String Dumper"
+    titleLabel.Font = Theme.FontBold
+    titleLabel.TextSize = 12
+    titleLabel.TextColor3 = Theme.Text
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Size = UDim2.new(0, 110, 1, 0)
+    titleLabel.Position = UDim2.new(0, 12, 0, 0)
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.ZIndex = 62
+    titleLabel.Parent = titleBar
+
+    local function makeStatTag(name, label, textColor, bgColor, posX)
+        local tag = Instance.new("Frame")
+        tag.Name = name
+        tag.BackgroundColor3 = bgColor
+        tag.BackgroundTransparency = 0.3
+        tag.Size = UDim2.new(0, 0, 0, 16)
+        tag.AutomaticSize = Enum.AutomaticSize.X
+        tag.Position = UDim2.new(0, posX, 0.5, -8)
+        tag.ZIndex = 62
+        tag.Parent = titleBar
+        Instance.new("UICorner", tag).CornerRadius = UDim.new(0, 3)
+
+        local pad = Instance.new("UIPadding")
+        pad.PaddingLeft = UDim.new(0, 5)
+        pad.PaddingRight = UDim.new(0, 5)
+        pad.Parent = tag
+
+        local lbl = Instance.new("TextLabel")
+        lbl.Name = "TagText"
+        lbl.Text = label .. " 0"
+        lbl.Font = Theme.FontBold
+        lbl.TextSize = 9
+        lbl.TextColor3 = textColor
+        lbl.BackgroundTransparency = 1
+        lbl.Size = UDim2.new(0, 0, 1, 0)
+        lbl.AutomaticSize = Enum.AutomaticSize.X
+        lbl.ZIndex = 63
+        lbl.Parent = tag
+        return lbl
+    end
+
+    local totalCountLabel = makeStatTag("DumpTotalCount", "TOTAL", Color3.fromRGB(210, 210, 215), Color3.fromRGB(50, 50, 55), 120)
+    local numberCountLabel = makeStatTag("DumpNumberCount", "NUMBER", Color3.fromRGB(120, 190, 255), Color3.fromRGB(30, 50, 70), 186)
+    local booleanCountLabel = makeStatTag("DumpBooleanCount", "BOOL", Color3.fromRGB(120, 220, 120), Color3.fromRGB(30, 65, 35), 276)
+
+    local function makeHeaderBtn(name, text, posFromRight)
+        local btn = Instance.new("TextButton")
+        btn.Name = name
+        btn.Text = text
+        btn.Font = Theme.Font
+        btn.TextSize = 11
+        btn.TextColor3 = Theme.SubText
+        btn.BackgroundColor3 = Theme.ToggleOff
+        btn.BackgroundTransparency = 0.3
+        btn.Size = UDim2.new(0, 46, 0, 20)
+        btn.Position = UDim2.new(1, posFromRight, 0, 6)
+        btn.AutoButtonColor = false
+        btn.ZIndex = 62
+        btn.Parent = titleBar
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+
+        btn:SetAttribute("Hovered", false)
+        btn.MouseEnter:Connect(function()
+            btn:SetAttribute("Hovered", true)
+            tween(btn, {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.15, TextColor3 = Theme.Text}, 0.2)
+        end)
+        btn.MouseLeave:Connect(function()
+            btn:SetAttribute("Hovered", false)
+            tween(btn, {BackgroundColor3 = Theme.ToggleOff, BackgroundTransparency = 0.3, TextColor3 = Theme.SubText}, 0.2)
+        end)
+
+        return btn
+    end
+
+    local scanBtn = makeHeaderBtn("Scan", "Scan", -304)
+    local exportBtn = makeHeaderBtn("Export", "Export", -252)
+    local copyBtn = makeHeaderBtn("Copy", "Copy", -200)
+    local clearBtn = makeHeaderBtn("Clear", "Clear", -148)
+
+    local minBtn = Instance.new("TextButton")
+    minBtn.Name = "StringDumpMin"
+    minBtn.Text = "–"
+    minBtn.Font = Theme.Font
+    minBtn.TextSize = 20
+    minBtn.TextColor3 = Theme.SubText
+    minBtn.BackgroundTransparency = 1
+    minBtn.Size = UDim2.new(0, 38, 0, TITLE_H)
+    minBtn.Position = UDim2.new(1, -114, 0, 0)
+    minBtn.ZIndex = 62
+    minBtn.Parent = titleBar
+    minBtn.MouseEnter:Connect(function() tween(minBtn, {TextColor3 = Theme.Accent}, 0.15) end)
+    minBtn.MouseLeave:Connect(function() tween(minBtn, {TextColor3 = Theme.SubText}, 0.15) end)
+
+    local maxBtn = Instance.new("TextButton")
+    maxBtn.Name = "StringDumpMax"
+    maxBtn.Text = "□"
+    maxBtn.Font = Theme.Font
+    maxBtn.TextSize = 22
+    maxBtn.TextColor3 = Theme.SubText
+    maxBtn.BackgroundTransparency = 1
+    maxBtn.Size = UDim2.new(0, 38, 0, TITLE_H)
+    maxBtn.Position = UDim2.new(1, -76, 0, 0)
+    maxBtn.ZIndex = 62
+    maxBtn.Parent = titleBar
+    maxBtn.MouseEnter:Connect(function() tween(maxBtn, {TextColor3 = Theme.Accent}, 0.15) end)
+    maxBtn.MouseLeave:Connect(function() tween(maxBtn, {TextColor3 = Theme.SubText}, 0.15) end)
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Name = "StringDumpClose"
+    closeBtn.Text = "×"
+    closeBtn.Font = Theme.Font
+    closeBtn.TextSize = 22
+    closeBtn.TextColor3 = Theme.SubText
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Size = UDim2.new(0, 38, 0, TITLE_H)
+    closeBtn.Position = UDim2.new(1, -38, 0, 0)
+    closeBtn.ZIndex = 62
+    closeBtn.Parent = titleBar
+    closeBtn.MouseEnter:Connect(function() tween(closeBtn, {TextColor3 = Color3.fromRGB(255, 80, 80)}, 0.15) end)
+    closeBtn.MouseLeave:Connect(function() tween(closeBtn, {TextColor3 = Theme.SubText}, 0.15) end)
+    closeBtn.MouseButton1Click:Connect(function()
+        self:_toggleStringDumper()
+    end)
+
+    local dumpMinimized = false
+    local dumpMaximized = false
+    local preMaxPos, preMaxSize
+
+    minBtn.MouseButton1Click:Connect(function()
+        if dumpMinimized then
+            dumpMinimized = false
+            tween(dumpFrame, {Size = UDim2.new(0, dumpFrame.Size.X.Offset, 0, self._stringDumper.targetH)}, 0.3)
+        else
+            dumpMinimized = true
+            if dumpMaximized then
+                dumpMaximized = false
+                maxBtn.Text = "□"
+            end
+            tween(dumpFrame, {Size = UDim2.new(0, dumpFrame.Size.X.Offset, 0, TITLE_H)}, 0.3)
+        end
+    end)
+
+    maxBtn.MouseButton1Click:Connect(function()
+        if dumpMinimized then
+            dumpMinimized = false
+        end
+        if dumpMaximized then
+            dumpMaximized = false
+            maxBtn.Text = "□"
+            tween(dumpFrame, {Size = preMaxSize, Position = preMaxPos}, 0.3)
+            self._stringDumper.targetW = preMaxSize.X.Offset
+            self._stringDumper.targetH = preMaxSize.Y.Offset
+        else
+            dumpMaximized = true
+            maxBtn.Text = "❐"
+            preMaxPos = dumpFrame.Position
+            preMaxSize = dumpFrame.Size
+            local vp = workspace.CurrentCamera.ViewportSize
+            dumpFrame.AnchorPoint = Vector2.new(0, 0)
+            tween(dumpFrame, {
+                Size = UDim2.new(0, vp.X, 0, vp.Y),
+                Position = UDim2.new(0, 0, 0, 0),
+            }, 0.3)
+            self._stringDumper.targetW = vp.X
+            self._stringDumper.targetH = vp.Y
+        end
+    end)
+
+    local dragging, dragInput, dragStart, startPos
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = dumpFrame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    titleBar.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            dumpFrame.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+            if dumpMaximized then
+                dumpMaximized = false
+                maxBtn.Text = "□"
+                dumpFrame.AnchorPoint = Vector2.new(0, 0.5)
+            end
+        end
+    end)
+
+    local resizeHandle = Instance.new("TextButton")
+    resizeHandle.Name = "StringDumpResizeHandle"
+    resizeHandle.Text = ""
+    resizeHandle.BackgroundColor3 = Theme.Glass
+    resizeHandle.BackgroundTransparency = 0.3
+    resizeHandle.Size = UDim2.new(0, 14, 0, 14)
+    resizeHandle.AnchorPoint = Vector2.new(1, 1)
+    resizeHandle.Position = UDim2.new(1, -2, 1, -2)
+    resizeHandle.ZIndex = 63
+    resizeHandle.AutoButtonColor = false
+    resizeHandle.Parent = dumpFrame
+    Instance.new("UICorner", resizeHandle).CornerRadius = UDim.new(0, 3)
+
+    for i = 1, 2 do
+        local grip = Instance.new("Frame")
+        grip.Name = "Grip" .. i
+        grip.BackgroundColor3 = Theme.SubText
+        grip.BackgroundTransparency = 0.3
+        grip.Size = UDim2.new(0, i == 1 and 8 or 4, 0, 1)
+        grip.Position = UDim2.new(0.5, -(i == 1 and 4 or 2), 0, i == 1 and 5 or 9)
+        grip.ZIndex = 64
+        grip.Parent = resizeHandle
+        Instance.new("UICorner", grip).CornerRadius = UDim.new(0, 1)
+    end
+
+    resizeHandle.MouseEnter:Connect(function() tween(resizeHandle, {BackgroundTransparency = 0.1}, 0.15) end)
+    resizeHandle.MouseLeave:Connect(function() tween(resizeHandle, {BackgroundTransparency = 0.3}, 0.15) end)
+
+    local resizing = false
+    local resizeStart, resizeSizeStart
+    resizeHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            resizing = true
+            resizeStart = input.Position
+            resizeSizeStart = Vector2.new(dumpFrame.AbsoluteSize.X, dumpFrame.AbsoluteSize.Y)
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then resizing = false end
+            end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if resizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - resizeStart
+            local newW = math.max(resizeSizeStart.X + delta.X, MIN_W)
+            local newH = math.max(resizeSizeStart.Y + delta.Y, MIN_H)
+            dumpFrame.Size = UDim2.new(0, newW, 0, newH)
+            self._stringDumper.targetW = newW
+            self._stringDumper.targetH = newH
+        end
+    end)
+
+    local toolbar = Instance.new("Frame")
+    toolbar.Name = "StringDumpToolbar"
+    toolbar.BackgroundColor3 = Theme.Glass
+    toolbar.BackgroundTransparency = 0.5
+    toolbar.Size = UDim2.new(1, -8, 0, TOOLBAR_H)
+    toolbar.Position = UDim2.new(0, 4, 0, TITLE_H + 1)
+    toolbar.ZIndex = 61
+    toolbar.Parent = dumpFrame
+    Instance.new("UICorner", toolbar).CornerRadius = UDim.new(0, 4)
+
+    local searchBox = Instance.new("TextBox")
+    searchBox.Name = "SearchBox"
+    searchBox.PlaceholderText = "Search key or value..."
+    searchBox.PlaceholderColor3 = Theme.SubText
+    searchBox.Text = ""
+    searchBox.Font = Enum.Font.RobotoMono
+    searchBox.TextSize = 11
+    searchBox.TextColor3 = Theme.Text
+    searchBox.BackgroundColor3 = Theme.Background
+    searchBox.BackgroundTransparency = 0.3
+    searchBox.Size = UDim2.new(1, -150, 0, 20)
+    searchBox.Position = UDim2.new(0, 6, 0.5, -10)
+    searchBox.ClearTextOnFocus = false
+    searchBox.ZIndex = 62
+    searchBox.Parent = toolbar
+    Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 4)
+
+    local searchPad = Instance.new("UIPadding")
+    searchPad.PaddingLeft = UDim.new(0, 6)
+    searchPad.PaddingRight = UDim.new(0, 6)
+    searchPad.Parent = searchBox
+
+    local typeFilterState = {number = true, boolean = true}
+
+    local function makeFilterBtn(name, text, textColor, bgColor, posFromRight)
+        local btn = Instance.new("TextButton")
+        btn.Name = name
+        btn.Text = text
+        btn.Font = Theme.FontBold
+        btn.TextSize = 9
+        btn.TextColor3 = textColor
+        btn.BackgroundColor3 = bgColor
+        btn.BackgroundTransparency = 0.2
+        btn.Size = UDim2.new(0, 62, 0, 18)
+        btn.Position = UDim2.new(1, posFromRight, 0.5, -9)
+        btn.AutoButtonColor = false
+        btn.ZIndex = 62
+        btn.Parent = toolbar
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 3)
+        return btn
+    end
+
+    local numberBtn = makeFilterBtn("Filter_number", "NUMBER", Color3.fromRGB(120, 190, 255), Color3.fromRGB(30, 50, 70), -140)
+    local booleanBtn = makeFilterBtn("Filter_boolean", "BOOLEAN", Color3.fromRGB(120, 220, 120), Color3.fromRGB(30, 65, 35), -72)
+
+    local scrollTop = TITLE_H + TOOLBAR_H + 4
+    local dumpScroll = Instance.new("ScrollingFrame")
+    dumpScroll.Name = "StringDumpScroll"
+    dumpScroll.BackgroundTransparency = 1
+    dumpScroll.Size = UDim2.new(1, -8, 1, -(scrollTop + 4))
+    dumpScroll.Position = UDim2.new(0, 4, 0, scrollTop)
+    dumpScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    dumpScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    dumpScroll.ScrollBarThickness = 2
+    dumpScroll.ScrollBarImageColor3 = Theme.Accent
+    dumpScroll.ScrollBarImageTransparency = 0.5
+    dumpScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+    dumpScroll.ZIndex = 61
+    dumpScroll.Parent = dumpFrame
+
+    local dumpLayout = Instance.new("UIListLayout")
+    dumpLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    dumpLayout.Padding = UDim.new(0, 1)
+    dumpLayout.Parent = dumpScroll
+
+    local dumpPad = Instance.new("UIPadding")
+    dumpPad.PaddingLeft = UDim.new(0, 4)
+    dumpPad.PaddingRight = UDim.new(0, 4)
+    dumpPad.PaddingTop = UDim.new(0, 2)
+    dumpPad.PaddingBottom = UDim.new(0, 4)
+    dumpPad.Parent = dumpScroll
+
+    local emptyLabel = Instance.new("TextLabel")
+    emptyLabel.Name = "StringDumpEmpty"
+    emptyLabel.Text = "Press Scan to collect entries"
+    emptyLabel.Font = Theme.Font
+    emptyLabel.TextSize = 12
+    emptyLabel.TextColor3 = Theme.SubText
+    emptyLabel.BackgroundTransparency = 1
+    emptyLabel.Size = UDim2.new(1, -8, 0, 24)
+    emptyLabel.LayoutOrder = 1
+    emptyLabel.Parent = dumpScroll
+
+    self._stringDumper = {
+        frame = dumpFrame,
+        scroll = dumpScroll,
+        toolbar = toolbar,
+        titleBar = titleBar,
+        resizeHandle = resizeHandle,
+        emptyLabel = emptyLabel,
+        searchBox = searchBox,
+        totalCountLabel = totalCountLabel,
+        numberCountLabel = numberCountLabel,
+        booleanCountLabel = booleanCountLabel,
+        entries = {},
+        rows = {},
+        filters = typeFilterState,
+        filterBtns = {number = numberBtn, boolean = booleanBtn},
+        open = false,
+        targetH = H,
+        targetW = W,
+    }
+
+    local function flashBtn(btn)
+        tween(btn, {BackgroundColor3 = Theme.Accent, TextColor3 = Theme.Text, BackgroundTransparency = 0.1}, 0.12)
+        task.delay(0.6, function()
+            if not btn:GetAttribute("Hovered") then
+                tween(btn, {BackgroundColor3 = Theme.ToggleOff, TextColor3 = Theme.SubText, BackgroundTransparency = 0.3}, 0.25)
+            end
+        end)
+    end
+
+    local function setButtonHoverAttrs(btn)
+        btn:SetAttribute("Hovered", false)
+        btn.MouseEnter:Connect(function() btn:SetAttribute("Hovered", true) end)
+        btn.MouseLeave:Connect(function() btn:SetAttribute("Hovered", false) end)
+    end
+
+    setButtonHoverAttrs(scanBtn)
+    setButtonHoverAttrs(exportBtn)
+    setButtonHoverAttrs(copyBtn)
+    setButtonHoverAttrs(clearBtn)
+
+    local function updateCounts()
+        local totalCount, numberCount, booleanCount = 0, 0, 0
+        for _, entry in ipairs(self._stringDumper.entries) do
+            totalCount = totalCount + 1
+            if entry.valueType == "number" then
+                numberCount = numberCount + 1
+            elseif entry.valueType == "boolean" then
+                booleanCount = booleanCount + 1
+            end
+        end
+        totalCountLabel.Text = "TOTAL " .. totalCount
+        numberCountLabel.Text = "NUMBER " .. numberCount
+        booleanCountLabel.Text = "BOOL " .. booleanCount
+    end
+
+    local function collectVisibleText()
+        local lines = {}
+        for _, rowData in ipairs(self._stringDumper.rows) do
+            if rowData.frame.Visible then
+                table.insert(lines, rowData.entry.line)
+            end
+        end
+        return table.concat(lines, "\n")
+    end
+
+    local function applyFilters()
+        local searchText = string.lower(searchBox.Text)
+        local visibleCount = 0
+        for _, rowData in ipairs(self._stringDumper.rows) do
+            local entry = rowData.entry
+            local visible = self._stringDumper.filters[entry.valueType] ~= false
+            if visible and searchText ~= "" then
+                local haystack = string.lower(entry.key .. " " .. entry.value .. " " .. entry.line)
+                visible = string.find(haystack, searchText, 1, true) ~= nil
+            end
+            rowData.frame.Visible = visible
+            if visible then
+                visibleCount = visibleCount + 1
+            end
+        end
+        emptyLabel.Visible = (#self._stringDumper.entries == 0) or (visibleCount == 0)
+        if #self._stringDumper.entries == 0 then
+            emptyLabel.Text = "Press Scan to collect entries"
+        elseif visibleCount == 0 then
+            emptyLabel.Text = "No entries match the current filters"
+        end
+    end
+
+    local function renderEntries(entries)
+        for _, rowData in ipairs(self._stringDumper.rows) do
+            if rowData.frame and rowData.frame.Parent then
+                rowData.frame:Destroy()
+            end
+        end
+        self._stringDumper.rows = {}
+        self._stringDumper.entries = entries or {}
+
+        for index, entry in ipairs(self._stringDumper.entries) do
+            local row = Instance.new("Frame")
+            row.Name = "Dump_" .. index
+            row.BackgroundColor3 = (index % 2 == 0) and Theme.Glass or Theme.Background
+            row.BackgroundTransparency = 0.5
+            row.Size = UDim2.new(1, 0, 0, 0)
+            row.AutomaticSize = Enum.AutomaticSize.Y
+            row.LayoutOrder = index + 1
+            row.ZIndex = 61
+            row.Parent = dumpScroll
+            Instance.new("UICorner", row).CornerRadius = UDim.new(0, 3)
+
+            local rowPad = Instance.new("UIPadding")
+            rowPad.PaddingTop = UDim.new(0, 3)
+            rowPad.PaddingBottom = UDim.new(0, 3)
+            rowPad.PaddingLeft = UDim.new(0, 6)
+            rowPad.PaddingRight = UDim.new(0, 22)
+            rowPad.Parent = row
+
+            local keyLabel = Instance.new("TextLabel")
+            keyLabel.Name = "DumpKey"
+            keyLabel.Text = entry.key
+            keyLabel.Font = Enum.Font.RobotoMono
+            keyLabel.TextSize = 11
+            keyLabel.TextColor3 = Theme.Text
+            keyLabel.BackgroundTransparency = 1
+            keyLabel.Size = UDim2.new(0, 150, 0, 16)
+            keyLabel.Position = UDim2.new(0, 0, 0, 0)
+            keyLabel.TextXAlignment = Enum.TextXAlignment.Left
+            keyLabel.ZIndex = 62
+            keyLabel.Parent = row
+
+            local typeTag = Instance.new("Frame")
+            typeTag.Name = "DumpTypeTag"
+            typeTag.BackgroundColor3 = entry.valueType == "number" and Color3.fromRGB(30, 50, 70) or Color3.fromRGB(30, 65, 35)
+            typeTag.BackgroundTransparency = 0.3
+            typeTag.Size = UDim2.new(0, 0, 0, 16)
+            typeTag.AutomaticSize = Enum.AutomaticSize.X
+            typeTag.Position = UDim2.new(0, 154, 0, 0)
+            typeTag.ZIndex = 62
+            typeTag.Parent = row
+            Instance.new("UICorner", typeTag).CornerRadius = UDim.new(0, 3)
+
+            local typePad = Instance.new("UIPadding")
+            typePad.PaddingLeft = UDim.new(0, 5)
+            typePad.PaddingRight = UDim.new(0, 5)
+            typePad.Parent = typeTag
+
+            local typeLabel = Instance.new("TextLabel")
+            typeLabel.Name = "TagText"
+            typeLabel.Text = string.upper(entry.valueType)
+            typeLabel.Font = Theme.FontBold
+            typeLabel.TextSize = 9
+            typeLabel.TextColor3 = entry.valueType == "number" and Color3.fromRGB(120, 190, 255) or Color3.fromRGB(120, 220, 120)
+            typeLabel.BackgroundTransparency = 1
+            typeLabel.Size = UDim2.new(0, 0, 1, 0)
+            typeLabel.AutomaticSize = Enum.AutomaticSize.X
+            typeLabel.ZIndex = 63
+            typeLabel.Parent = typeTag
+
+            local valueLabel = Instance.new("TextLabel")
+            valueLabel.Name = "DumpValue"
+            valueLabel.Text = entry.value
+            valueLabel.Font = Enum.Font.RobotoMono
+            valueLabel.TextSize = 11
+            valueLabel.TextColor3 = Theme.SubText
+            valueLabel.BackgroundTransparency = 1
+            valueLabel.Size = UDim2.new(1, -236, 0, 0)
+            valueLabel.AutomaticSize = Enum.AutomaticSize.Y
+            valueLabel.Position = UDim2.new(0, 230, 0, 0)
+            valueLabel.TextXAlignment = Enum.TextXAlignment.Left
+            valueLabel.TextWrapped = true
+            valueLabel.ZIndex = 62
+            valueLabel.Parent = row
+
+            local rowCopyBtn = Instance.new("ImageButton")
+            rowCopyBtn.Name = "RowCopy"
+            rowCopyBtn.Image = "rbxassetid://7733764083"
+            rowCopyBtn.ImageColor3 = Theme.SubText
+            rowCopyBtn.BackgroundTransparency = 1
+            rowCopyBtn.Size = UDim2.new(0, 14, 0, 14)
+            rowCopyBtn.AnchorPoint = Vector2.new(1, 0)
+            rowCopyBtn.Position = UDim2.new(1, 18, 0, 1)
+            rowCopyBtn.ZIndex = 63
+            rowCopyBtn.AutoButtonColor = false
+            rowCopyBtn.Visible = false
+            rowCopyBtn.Parent = row
+
+            row.MouseEnter:Connect(function()
+                rowCopyBtn.Visible = true
+                tween(row, {BackgroundTransparency = 0.3}, 0.1)
+            end)
+            row.MouseLeave:Connect(function()
+                rowCopyBtn.Visible = false
+                tween(row, {BackgroundTransparency = 0.5}, 0.1)
+            end)
+
+            rowCopyBtn.MouseButton1Click:Connect(function()
+                if setclipboard then
+                    setclipboard(entry.line)
+                elseif toclipboard then
+                    toclipboard(entry.line)
+                end
+                tween(rowCopyBtn, {ImageColor3 = Color3.fromRGB(80, 190, 80)}, 0.12)
+                task.delay(0.6, function()
+                    tween(rowCopyBtn, {ImageColor3 = Theme.SubText}, 0.15)
+                end)
+            end)
+
+            table.insert(self._stringDumper.rows, {frame = row, entry = entry})
+        end
+
+        updateCounts()
+        applyFilters()
+    end
+
+    local function runScan()
+        local entries, err = self:_collectStringDumpData()
+        if not entries then
+            renderEntries({})
+            emptyLabel.Text = "String Dumper unavailable: " .. tostring(err)
+            if self.Notify then
+                self:Notify({Text = "String Dumper unavailable: " .. tostring(err), Duration = 4})
+            end
+            return
+        end
+
+        renderEntries(entries)
+        if self.Notify then
+            self:Notify({Text = "String scan complete: " .. tostring(#entries) .. " entries", Duration = 3})
+        end
+    end
+
+    searchBox:GetPropertyChangedSignal("Text"):Connect(applyFilters)
+
+    local function setupFilter(btn, valueType, activeText)
+        btn.MouseButton1Click:Connect(function()
+            typeFilterState[valueType] = not typeFilterState[valueType]
+            if typeFilterState[valueType] then
+                tween(btn, {BackgroundTransparency = 0.2, TextColor3 = activeText}, 0.15)
+            else
+                tween(btn, {BackgroundTransparency = 0.7, TextColor3 = Color3.fromRGB(100, 100, 100)}, 0.15)
+            end
+            applyFilters()
+        end)
+    end
+
+    setupFilter(numberBtn, "number", Color3.fromRGB(120, 190, 255))
+    setupFilter(booleanBtn, "boolean", Color3.fromRGB(120, 220, 120))
+
+    scanBtn.MouseButton1Click:Connect(function()
+        runScan()
+        flashBtn(scanBtn)
+    end)
+
+    copyBtn.MouseButton1Click:Connect(function()
+        local text = collectVisibleText()
+        if text ~= "" then
+            if setclipboard then
+                setclipboard(text)
+            elseif toclipboard then
+                toclipboard(text)
+            end
+        end
+        flashBtn(copyBtn)
+    end)
+
+    exportBtn.MouseButton1Click:Connect(function()
+        if type(writefile) ~= "function" then
+            if self.Notify then
+                self:Notify({Text = "Export unavailable: writefile missing", Duration = 4})
+            end
+            return
+        end
+        local text = collectVisibleText()
+        writefile("StringDumped.lua", text)
+        if self.Notify then
+            self:Notify({Text = "String dump exported", Duration = 3})
+        end
+        flashBtn(exportBtn)
+    end)
+
+    clearBtn.MouseButton1Click:Connect(function()
+        renderEntries({})
+        searchBox.Text = ""
+        flashBtn(clearBtn)
+    end)
+
+    self._stringDumper.open = true
+    tween(dumpFrame, {Size = UDim2.new(0, W, 0, H)}, 0.35)
+    task.defer(runScan)
+end
+
+function Library:_toggleStringDumper()
+    if not self._stringDumper then
+        self:_createStringDumper()
+        return
+    end
+
+    local dump = self._stringDumper
+    if dump.open then
+        dump.open = false
+        tween(dump.frame, {Size = UDim2.new(0, dump.frame.Size.X.Offset, 0, 0)}, 0.3)
+        task.delay(0.35, function()
+            if not dump.open then
+                dump.frame.Visible = false
+            end
+        end)
+    else
+        dump.open = true
+        dump.frame.Visible = true
+        tween(dump.frame, {Size = UDim2.new(0, dump.targetW or dump.frame.Size.X.Offset, 0, dump.targetH)}, 0.3)
+    end
 end
 
 -- ═══════════════════════════════════════════════════
