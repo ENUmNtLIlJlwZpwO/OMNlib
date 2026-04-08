@@ -2471,6 +2471,10 @@ function Library:_refreshAccent(c)
         self._stringDumper.scroll.ScrollBarImageColor3 = c
     end
 
+    if self._remoteMonitor and self._remoteMonitor.scroll then
+        self._remoteMonitor.scroll.ScrollBarImageColor3 = c
+    end
+
 end
 
 function Library:_refreshGlass()
@@ -2700,6 +2704,63 @@ function Library:_refreshGlass()
         end
     end
 
+    -- Update Remote Monitor window (if exists)
+    if self._remoteMonitor then
+        local rf = self._remoteMonitor.frame
+        if rf then
+            rf.BackgroundColor3 = Theme.Background
+            local rtb = rf:FindFirstChild("RMTitleBar")
+            if rtb then
+                rtb.BackgroundColor3 = Theme.Glass
+                local rt = rtb:FindFirstChild("RMTitle")
+                if rt then rt.TextColor3 = Theme.Text end
+            end
+            for _, btnName in ipairs({"Pause", "Export", "Copy", "Clear"}) do
+                local b = rtb and rtb:FindFirstChild(btnName)
+                if b and not b:GetAttribute("Hovered") then
+                    b.BackgroundColor3 = Theme.ToggleOff
+                    b.TextColor3 = Theme.SubText
+                    b.BackgroundTransparency = 0.3
+                end
+            end
+            for _, btnName in ipairs({"RMClose", "RMMin", "RMMax"}) do
+                local b = rtb and rtb:FindFirstChild(btnName)
+                if b then b.TextColor3 = Theme.SubText end
+            end
+            local tb = rf:FindFirstChild("RMToolbar")
+            if tb then
+                tb.BackgroundColor3 = Theme.Glass
+                local sb = tb:FindFirstChild("SearchBox")
+                if sb then
+                    sb.BackgroundColor3 = Theme.Background
+                    sb.TextColor3 = Theme.Text
+                    sb.PlaceholderColor3 = Theme.SubText
+                end
+            end
+            local scroll = self._remoteMonitor.scroll
+            if scroll then
+                scroll.ScrollBarImageColor3 = Theme.Accent
+                for _, child in ipairs(scroll:GetChildren()) do
+                    if child:IsA("Frame") and child.Name:sub(1, 3) == "RM_" then
+                        local num = tonumber(child.Name:sub(4))
+                        if num then
+                            child.BackgroundColor3 = (num % 2 == 0) and Theme.Glass or Theme.Background
+                        end
+                    end
+                end
+            end
+            local rh = rf:FindFirstChild("RMResizeHandle")
+            if rh then
+                rh.BackgroundColor3 = Theme.Glass
+                for _, grip in ipairs(rh:GetChildren()) do
+                    if grip:IsA("Frame") and grip.Name:sub(1, 4) == "Grip" then
+                        grip.BackgroundColor3 = Theme.SubText
+                    end
+                end
+            end
+        end
+    end
+
 end
 
 function Library:_refreshTextColor(c)
@@ -2713,6 +2774,7 @@ function Library:_refreshTextColor(c)
         if desc:IsA("TextLabel") and desc.Name ~= "Check" and desc.Name ~= "Count"
             and desc.Name ~= "LogTime" and desc.Name ~= "LogTag" and desc.Name ~= "LogMsg"
             and desc.Name ~= "TagText" and desc.Name ~= "StackBadge"
+            and desc.Name ~= "RemoteTime" and desc.Name ~= "RemoteTag"
             then
             desc.TextColor3 = c
         end
@@ -2968,6 +3030,13 @@ function Library:AddAdminPanel()
         Text = "String Dumper",
         Callback = function()
             libSelf:_toggleStringDumper()
+        end,
+    })
+
+    ToolsGroup:AddButton({
+        Text = "Remote Monitor",
+        Callback = function()
+            libSelf:_toggleRemoteMonitor()
         end,
     })
 
@@ -3695,6 +3764,789 @@ function Library:_createStringDumper()
     self._stringDumper.open = true
     tween(dumpFrame, {Size = UDim2.new(0, W, 0, H)}, 0.35)
     task.defer(runScan)
+end
+
+-- ═══════════════════════════════════════════════════
+--  REMOTE MONITOR (namecall / __index / __newindex hook)
+-- ═══════════════════════════════════════════════════
+
+Library._remoteMonitorSubscribers = setmetatable({}, {__mode = "v"})
+
+function Library:_installRemoteMonitorHook()
+    if self._remoteMonitorHooked then return end
+    self._remoteMonitorHooked = true
+
+    if type(hookmetamethod) ~= "function" or type(getnamecallmethod) ~= "function"
+        or type(newcclosure) ~= "function" or type(checkcaller) ~= "function" then
+        return
+    end
+
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self2, ...)
+        local method = getnamecallmethod()
+        if not checkcaller() then
+            local className = ""
+            pcall(function() className = self2.ClassName end)
+            if className == "RemoteEvent" or className == "RemoteFunction"
+                or className == "UnreliableRemoteEvent" then
+                local args = {...}
+                local remoteName = ""
+                pcall(function() remoteName = self2.Name end)
+                local remotePath = ""
+                pcall(function() remotePath = self2:GetFullName() end)
+                for _, monitor in pairs(Library._remoteMonitorSubscribers) do
+                    if monitor and not monitor.paused then
+                        Library:_pushRemoteMonitorEntry(monitor, {
+                            eventType = "EVENT",
+                            method = method,
+                            remoteName = remoteName,
+                            remotePath = remotePath,
+                            className = className,
+                            args = args,
+                        })
+                    end
+                end
+            end
+        end
+        return oldNamecall(self2, ...)
+    end))
+
+    local oldIndex
+    oldIndex = hookmetamethod(game, "__index", newcclosure(function(self2, key)
+        if not checkcaller() and type(key) == "string" then
+            local className = ""
+            pcall(function() className = self2.ClassName end)
+            if (className == "RemoteEvent" or className == "RemoteFunction"
+                or className == "UnreliableRemoteEvent")
+                and (key == "FireServer" or key == "InvokeServer" or key == "Fire") then
+                local remoteName = ""
+                pcall(function() remoteName = self2.Name end)
+                local remotePath = ""
+                pcall(function() remotePath = self2:GetFullName() end)
+                for _, monitor in pairs(Library._remoteMonitorSubscribers) do
+                    if monitor and not monitor.paused then
+                        Library:_pushRemoteMonitorEntry(monitor, {
+                            eventType = "FUNCTION",
+                            method = key,
+                            remoteName = remoteName,
+                            remotePath = remotePath,
+                            className = className,
+                            args = {},
+                        })
+                    end
+                end
+            end
+        end
+        return oldIndex(self2, key)
+    end))
+end
+
+function Library:_pushRemoteMonitorEntry(monitor, data)
+    if not monitor or not monitor.scroll then return end
+    monitor.logCount = (monitor.logCount or 0) + 1
+    local index = monitor.logCount
+
+    local row = Instance.new("Frame")
+    row.Name = "RM_" .. index
+    row.BackgroundColor3 = (index % 2 == 0) and Theme.Glass or Theme.Background
+    row.BackgroundTransparency = 0.5
+    row.Size = UDim2.new(1, 0, 0, 16)
+    row.LayoutOrder = index
+    row.ZIndex = 61
+    row.Parent = monitor.scroll
+    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 3)
+
+    local rowPad = Instance.new("UIPadding")
+    rowPad.PaddingLeft = UDim.new(0, 6)
+    rowPad.PaddingRight = UDim.new(0, 6)
+    rowPad.Parent = row
+
+    local timeLabel = Instance.new("TextLabel")
+    timeLabel.Name = "RemoteTime"
+    timeLabel.Text = os.date("%H:%M:%S")
+    timeLabel.Font = Enum.Font.RobotoMono
+    timeLabel.TextSize = 10
+    timeLabel.TextColor3 = Theme.SubText
+    timeLabel.BackgroundTransparency = 1
+    timeLabel.Size = UDim2.new(0, 52, 1, 0)
+    timeLabel.TextXAlignment = Enum.TextXAlignment.Left
+    timeLabel.ZIndex = 62
+    timeLabel.Parent = row
+
+    -- Event type tag
+    local tagBg = Instance.new("Frame")
+    tagBg.Name = "RemoteTagBg"
+    tagBg.BackgroundColor3 = data.eventType == "EVENT" and Color3.fromRGB(30, 50, 70) or Color3.fromRGB(60, 40, 70)
+    tagBg.BackgroundTransparency = 0.3
+    tagBg.Size = UDim2.new(0, 0, 0, 14)
+    tagBg.AutomaticSize = Enum.AutomaticSize.X
+    tagBg.Position = UDim2.new(0, 56, 0.5, -7)
+    tagBg.ZIndex = 62
+    tagBg.Parent = row
+    Instance.new("UICorner", tagBg).CornerRadius = UDim.new(0, 3)
+
+    local tagPad = Instance.new("UIPadding")
+    tagPad.PaddingLeft = UDim.new(0, 4)
+    tagPad.PaddingRight = UDim.new(0, 4)
+    tagPad.Parent = tagBg
+
+    local tagLabel = Instance.new("TextLabel")
+    tagLabel.Name = "RemoteTag"
+    tagLabel.Text = data.eventType
+    tagLabel.Font = Theme.FontBold
+    tagLabel.TextSize = 8
+    tagLabel.TextColor3 = data.eventType == "EVENT" and Color3.fromRGB(120, 190, 255) or Color3.fromRGB(200, 140, 255)
+    tagLabel.BackgroundTransparency = 1
+    tagLabel.Size = UDim2.new(0, 0, 1, 0)
+    tagLabel.AutomaticSize = Enum.AutomaticSize.X
+    tagLabel.ZIndex = 63
+    tagLabel.Parent = tagBg
+
+    -- Remote name + method
+    local infoLabel = Instance.new("TextLabel")
+    infoLabel.Name = "RemoteInfo"
+    infoLabel.Text = data.remoteName .. ":" .. data.method
+    infoLabel.Font = Enum.Font.RobotoMono
+    infoLabel.TextSize = 10
+    infoLabel.TextColor3 = Theme.Text
+    infoLabel.BackgroundTransparency = 1
+    infoLabel.Size = UDim2.new(1, -180, 1, 0)
+    infoLabel.Position = UDim2.new(0, 120, 0, 0)
+    infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+    infoLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    infoLabel.ZIndex = 62
+    infoLabel.Parent = row
+
+    -- Args count
+    local argCount = #data.args
+    local argsLabel = Instance.new("TextLabel")
+    argsLabel.Name = "RemoteArgs"
+    argsLabel.Text = argCount .. " arg" .. (argCount ~= 1 and "s" or "")
+    argsLabel.Font = Enum.Font.RobotoMono
+    argsLabel.TextSize = 9
+    argsLabel.TextColor3 = Theme.SubText
+    argsLabel.BackgroundTransparency = 1
+    argsLabel.Size = UDim2.new(0, 50, 1, 0)
+    argsLabel.AnchorPoint = Vector2.new(1, 0)
+    argsLabel.Position = UDim2.new(1, 0, 0, 0)
+    argsLabel.TextXAlignment = Enum.TextXAlignment.Right
+    argsLabel.ZIndex = 62
+    argsLabel.Parent = row
+
+    -- Copy full line on click
+    local fullLine = "[" .. os.date("%H:%M:%S") .. "] [" .. data.eventType .. "] " .. data.remotePath .. ":" .. data.method .. " (" .. argCount .. " args)"
+    row.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if setclipboard then
+                setclipboard(fullLine)
+            elseif toclipboard then
+                toclipboard(fullLine)
+            end
+            tween(row, {BackgroundTransparency = 0.2}, 0.1)
+            task.delay(0.3, function()
+                tween(row, {BackgroundTransparency = 0.5}, 0.15)
+            end)
+        end
+    end)
+
+    row.MouseEnter:Connect(function() tween(row, {BackgroundTransparency = 0.3}, 0.1) end)
+    row.MouseLeave:Connect(function() tween(row, {BackgroundTransparency = 0.5}, 0.1) end)
+
+    -- Store entry data for filtering
+    row:SetAttribute("EventType", data.eventType)
+    row:SetAttribute("SearchText", string.lower(data.remoteName .. " " .. data.method .. " " .. data.remotePath))
+
+    -- Update counter
+    if monitor.countLabel then
+        monitor.countLabel.Text = "TOTAL " .. monitor.logCount
+    end
+
+    local eventCounts = monitor.eventCounts or {EVENT = 0, FUNCTION = 0}
+    eventCounts[data.eventType] = (eventCounts[data.eventType] or 0) + 1
+    monitor.eventCounts = eventCounts
+    if monitor.eventCountLabel then
+        monitor.eventCountLabel.Text = "EVENT " .. (eventCounts.EVENT or 0)
+    end
+    if monitor.funcCountLabel then
+        monitor.funcCountLabel.Text = "FUNC " .. (eventCounts.FUNCTION or 0)
+    end
+
+    -- Apply current filters
+    if monitor.applyFilters then
+        monitor.applyFilters()
+    end
+
+    -- Auto-scroll
+    if not monitor.paused then
+        task.defer(function()
+            if monitor.scroll then
+                monitor.scroll.CanvasPosition = Vector2.new(0, monitor.scroll.AbsoluteCanvasSize.Y)
+            end
+        end)
+    end
+end
+
+function Library:_createRemoteMonitor()
+    local W, H = 580, 360
+    local MIN_W, MIN_H = 420, 220
+    local TITLE_H = 32
+    local TOOLBAR_H = 28
+
+    local mainPos = self.Main.AbsolutePosition
+    local mainSize = self.Main.AbsoluteSize
+    local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080)
+    local rmX = mainPos.X + mainSize.X + 10
+    if rmX + W > viewport.X - 4 then
+        rmX = math.max(mainPos.X - W - 10, 4)
+    end
+
+    local rmFrame = Instance.new("Frame")
+    rmFrame.Name = "RemoteMonitorWindow"
+    rmFrame.BackgroundColor3 = Theme.Background
+    rmFrame.BackgroundTransparency = 0.05
+    rmFrame.Size = UDim2.new(0, W, 0, 0)
+    rmFrame.Position = UDim2.new(0, rmX, 0.5, 0)
+    rmFrame.AnchorPoint = Vector2.new(0, 0.5)
+    rmFrame.ClipsDescendants = true
+    rmFrame.ZIndex = 60
+    rmFrame.Parent = self.ScreenGui
+    applyGlass(rmFrame)
+    addShadow(rmFrame)
+
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "RMTitleBar"
+    titleBar.BackgroundColor3 = Theme.Glass
+    titleBar.BackgroundTransparency = 0.3
+    titleBar.Size = UDim2.new(1, 0, 0, TITLE_H)
+    titleBar.ZIndex = 61
+    titleBar.Parent = rmFrame
+    Instance.new("UICorner", titleBar).CornerRadius = Theme.CornerRadius
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "RMTitle"
+    titleLabel.Text = "Remote Monitor"
+    titleLabel.Font = Theme.FontBold
+    titleLabel.TextSize = 12
+    titleLabel.TextColor3 = Theme.Text
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Size = UDim2.new(0, 120, 1, 0)
+    titleLabel.Position = UDim2.new(0, 12, 0, 0)
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.ZIndex = 62
+    titleLabel.Parent = titleBar
+
+    -- Stat tags
+    local function makeStatTag(name, label, textColor, bgColor, posX)
+        local tag = Instance.new("Frame")
+        tag.Name = name
+        tag.BackgroundColor3 = bgColor
+        tag.BackgroundTransparency = 0.3
+        tag.Size = UDim2.new(0, 0, 0, 16)
+        tag.AutomaticSize = Enum.AutomaticSize.X
+        tag.Position = UDim2.new(0, posX, 0.5, -8)
+        tag.ZIndex = 62
+        tag.Parent = titleBar
+        Instance.new("UICorner", tag).CornerRadius = UDim.new(0, 3)
+
+        local pad = Instance.new("UIPadding")
+        pad.PaddingLeft = UDim.new(0, 5)
+        pad.PaddingRight = UDim.new(0, 5)
+        pad.Parent = tag
+
+        local lbl = Instance.new("TextLabel")
+        lbl.Name = "TagText"
+        lbl.Text = label .. " 0"
+        lbl.Font = Theme.FontBold
+        lbl.TextSize = 9
+        lbl.TextColor3 = textColor
+        lbl.BackgroundTransparency = 1
+        lbl.Size = UDim2.new(0, 0, 1, 0)
+        lbl.AutomaticSize = Enum.AutomaticSize.X
+        lbl.ZIndex = 63
+        lbl.Parent = tag
+        return lbl
+    end
+
+    local totalCountLabel = makeStatTag("RMTotalCount", "TOTAL", Color3.fromRGB(210, 210, 215), Color3.fromRGB(50, 50, 55), 136)
+    local eventCountLabel = makeStatTag("RMEventCount", "EVENT", Color3.fromRGB(120, 190, 255), Color3.fromRGB(30, 50, 70), 200)
+    local funcCountLabel = makeStatTag("RMFuncCount", "FUNC", Color3.fromRGB(200, 140, 255), Color3.fromRGB(60, 40, 70), 264)
+
+    -- Header action buttons
+    local function makeHeaderBtn(name, text, posFromRight)
+        local btn = Instance.new("TextButton")
+        btn.Name = name
+        btn.Text = text
+        btn.Font = Theme.Font
+        btn.TextSize = 11
+        btn.TextColor3 = Theme.SubText
+        btn.BackgroundColor3 = Theme.ToggleOff
+        btn.BackgroundTransparency = 0.3
+        btn.Size = UDim2.new(0, 46, 0, 20)
+        btn.Position = UDim2.new(1, posFromRight, 0, 6)
+        btn.AutoButtonColor = false
+        btn.ZIndex = 62
+        btn.Parent = titleBar
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+
+        btn:SetAttribute("Hovered", false)
+        btn.MouseEnter:Connect(function()
+            btn:SetAttribute("Hovered", true)
+            tween(btn, {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.15, TextColor3 = Theme.Text}, 0.2)
+        end)
+        btn.MouseLeave:Connect(function()
+            btn:SetAttribute("Hovered", false)
+            tween(btn, {BackgroundColor3 = Theme.ToggleOff, BackgroundTransparency = 0.3, TextColor3 = Theme.SubText}, 0.2)
+        end)
+        return btn
+    end
+
+    local pauseBtn = makeHeaderBtn("Pause", "Pause", -354)
+    local exportBtn = makeHeaderBtn("Export", "Export", -302)
+    local copyBtn = makeHeaderBtn("Copy", "Copy", -250)
+    local clearBtn = makeHeaderBtn("Clear", "Clear", -198)
+
+    -- Window controls
+    local minBtn = Instance.new("TextButton")
+    minBtn.Name = "RMMin"
+    minBtn.Text = "–"
+    minBtn.Font = Theme.Font
+    minBtn.TextSize = 20
+    minBtn.TextColor3 = Theme.SubText
+    minBtn.BackgroundTransparency = 1
+    minBtn.Size = UDim2.new(0, 38, 0, TITLE_H)
+    minBtn.Position = UDim2.new(1, -114, 0, 0)
+    minBtn.ZIndex = 62
+    minBtn.Parent = titleBar
+    minBtn.MouseEnter:Connect(function() tween(minBtn, {TextColor3 = Theme.Accent}, 0.15) end)
+    minBtn.MouseLeave:Connect(function() tween(minBtn, {TextColor3 = Theme.SubText}, 0.15) end)
+
+    local maxBtn = Instance.new("TextButton")
+    maxBtn.Name = "RMMax"
+    maxBtn.Text = "□"
+    maxBtn.Font = Theme.Font
+    maxBtn.TextSize = 22
+    maxBtn.TextColor3 = Theme.SubText
+    maxBtn.BackgroundTransparency = 1
+    maxBtn.Size = UDim2.new(0, 38, 0, TITLE_H)
+    maxBtn.Position = UDim2.new(1, -76, 0, 0)
+    maxBtn.ZIndex = 62
+    maxBtn.Parent = titleBar
+    maxBtn.MouseEnter:Connect(function() tween(maxBtn, {TextColor3 = Theme.Accent}, 0.15) end)
+    maxBtn.MouseLeave:Connect(function() tween(maxBtn, {TextColor3 = Theme.SubText}, 0.15) end)
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Name = "RMClose"
+    closeBtn.Text = "×"
+    closeBtn.Font = Theme.Font
+    closeBtn.TextSize = 22
+    closeBtn.TextColor3 = Theme.SubText
+    closeBtn.BackgroundTransparency = 1
+    closeBtn.Size = UDim2.new(0, 38, 0, TITLE_H)
+    closeBtn.Position = UDim2.new(1, -38, 0, 0)
+    closeBtn.ZIndex = 62
+    closeBtn.Parent = titleBar
+    closeBtn.MouseEnter:Connect(function() tween(closeBtn, {TextColor3 = Color3.fromRGB(255, 80, 80)}, 0.15) end)
+    closeBtn.MouseLeave:Connect(function() tween(closeBtn, {TextColor3 = Theme.SubText}, 0.15) end)
+    closeBtn.MouseButton1Click:Connect(function()
+        self:_toggleRemoteMonitor()
+    end)
+
+    local rmMinimized = false
+    local rmMaximized = false
+    local preMaxPos, preMaxSize
+
+    minBtn.MouseButton1Click:Connect(function()
+        if rmMinimized then
+            rmMinimized = false
+            tween(rmFrame, {Size = UDim2.new(0, rmFrame.Size.X.Offset, 0, self._remoteMonitor.targetH)}, 0.3)
+        else
+            rmMinimized = true
+            if rmMaximized then
+                rmMaximized = false
+                maxBtn.Text = "□"
+            end
+            tween(rmFrame, {Size = UDim2.new(0, rmFrame.Size.X.Offset, 0, TITLE_H)}, 0.3)
+        end
+    end)
+
+    maxBtn.MouseButton1Click:Connect(function()
+        if rmMinimized then rmMinimized = false end
+        if rmMaximized then
+            rmMaximized = false
+            maxBtn.Text = "□"
+            tween(rmFrame, {Size = preMaxSize, Position = preMaxPos}, 0.3)
+            self._remoteMonitor.targetW = preMaxSize.X.Offset
+            self._remoteMonitor.targetH = preMaxSize.Y.Offset
+        else
+            rmMaximized = true
+            maxBtn.Text = "❐"
+            preMaxPos = rmFrame.Position
+            preMaxSize = rmFrame.Size
+            local vp = workspace.CurrentCamera.ViewportSize
+            rmFrame.AnchorPoint = Vector2.new(0, 0)
+            tween(rmFrame, {
+                Size = UDim2.new(0, vp.X, 0, vp.Y),
+                Position = UDim2.new(0, 0, 0, 0),
+            }, 0.3)
+            self._remoteMonitor.targetW = vp.X
+            self._remoteMonitor.targetH = vp.Y
+        end
+    end)
+
+    -- Dragging
+    local dragging, dragInput, dragStart, startPos
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = rmFrame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    titleBar.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            local delta = input.Position - dragStart
+            rmFrame.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+            if rmMaximized then
+                rmMaximized = false
+                maxBtn.Text = "□"
+                rmFrame.AnchorPoint = Vector2.new(0, 0.5)
+            end
+        end
+    end)
+
+    -- Resize handle
+    local resizeHandle = Instance.new("TextButton")
+    resizeHandle.Name = "RMResizeHandle"
+    resizeHandle.Text = ""
+    resizeHandle.BackgroundColor3 = Theme.Glass
+    resizeHandle.BackgroundTransparency = 0.3
+    resizeHandle.Size = UDim2.new(0, 14, 0, 14)
+    resizeHandle.AnchorPoint = Vector2.new(1, 1)
+    resizeHandle.Position = UDim2.new(1, -2, 1, -2)
+    resizeHandle.ZIndex = 63
+    resizeHandle.AutoButtonColor = false
+    resizeHandle.Parent = rmFrame
+    Instance.new("UICorner", resizeHandle).CornerRadius = UDim.new(0, 3)
+
+    for i = 1, 2 do
+        local grip = Instance.new("Frame")
+        grip.Name = "Grip" .. i
+        grip.BackgroundColor3 = Theme.SubText
+        grip.BackgroundTransparency = 0.3
+        grip.Size = UDim2.new(0, i == 1 and 8 or 4, 0, 1)
+        grip.Position = UDim2.new(0.5, -(i == 1 and 4 or 2), 0, i == 1 and 5 or 9)
+        grip.ZIndex = 64
+        grip.Parent = resizeHandle
+        Instance.new("UICorner", grip).CornerRadius = UDim.new(0, 1)
+    end
+
+    resizeHandle.MouseEnter:Connect(function() tween(resizeHandle, {BackgroundTransparency = 0.1}, 0.15) end)
+    resizeHandle.MouseLeave:Connect(function() tween(resizeHandle, {BackgroundTransparency = 0.3}, 0.15) end)
+
+    local resizing = false
+    local resizeStart, resizeSizeStart
+    resizeHandle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            resizing = true
+            resizeStart = input.Position
+            resizeSizeStart = Vector2.new(rmFrame.AbsoluteSize.X, rmFrame.AbsoluteSize.Y)
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then resizing = false end
+            end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if resizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - resizeStart
+            local newW = math.max(resizeSizeStart.X + delta.X, MIN_W)
+            local newH = math.max(resizeSizeStart.Y + delta.Y, MIN_H)
+            rmFrame.Size = UDim2.new(0, newW, 0, newH)
+            self._remoteMonitor.targetW = newW
+            self._remoteMonitor.targetH = newH
+        end
+    end)
+
+    -- Toolbar
+    local toolbar = Instance.new("Frame")
+    toolbar.Name = "RMToolbar"
+    toolbar.BackgroundColor3 = Theme.Glass
+    toolbar.BackgroundTransparency = 0.5
+    toolbar.Size = UDim2.new(1, -8, 0, TOOLBAR_H)
+    toolbar.Position = UDim2.new(0, 4, 0, TITLE_H + 1)
+    toolbar.ZIndex = 61
+    toolbar.Parent = rmFrame
+    Instance.new("UICorner", toolbar).CornerRadius = UDim.new(0, 4)
+
+    local searchBox = Instance.new("TextBox")
+    searchBox.Name = "SearchBox"
+    searchBox.PlaceholderText = "Search remote name..."
+    searchBox.PlaceholderColor3 = Theme.SubText
+    searchBox.Text = ""
+    searchBox.Font = Enum.Font.RobotoMono
+    searchBox.TextSize = 11
+    searchBox.TextColor3 = Theme.Text
+    searchBox.BackgroundColor3 = Theme.Background
+    searchBox.BackgroundTransparency = 0.3
+    searchBox.Size = UDim2.new(1, -150, 0, 20)
+    searchBox.Position = UDim2.new(0, 6, 0.5, -10)
+    searchBox.ClearTextOnFocus = false
+    searchBox.ZIndex = 62
+    searchBox.Parent = toolbar
+    Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 4)
+
+    local searchPad = Instance.new("UIPadding")
+    searchPad.PaddingLeft = UDim.new(0, 6)
+    searchPad.PaddingRight = UDim.new(0, 6)
+    searchPad.Parent = searchBox
+
+    local filterState = {EVENT = true, FUNCTION = true}
+
+    local function makeFilterBtn(name, text, textColor, bgColor, posFromRight)
+        local btn = Instance.new("TextButton")
+        btn.Name = name
+        btn.Text = text
+        btn.Font = Theme.FontBold
+        btn.TextSize = 9
+        btn.TextColor3 = textColor
+        btn.BackgroundColor3 = bgColor
+        btn.BackgroundTransparency = 0.2
+        btn.Size = UDim2.new(0, 62, 0, 18)
+        btn.Position = UDim2.new(1, posFromRight, 0.5, -9)
+        btn.AutoButtonColor = false
+        btn.ZIndex = 62
+        btn.Parent = toolbar
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 3)
+        return btn
+    end
+
+    local eventFilterBtn = makeFilterBtn("Filter_EVENT", "EVENT", Color3.fromRGB(120, 190, 255), Color3.fromRGB(30, 50, 70), -140)
+    local funcFilterBtn = makeFilterBtn("Filter_FUNCTION", "FUNCTION", Color3.fromRGB(200, 140, 255), Color3.fromRGB(60, 40, 70), -72)
+
+    -- Scroll area
+    local scrollTop = TITLE_H + TOOLBAR_H + 4
+    local rmScroll = Instance.new("ScrollingFrame")
+    rmScroll.Name = "RMScroll"
+    rmScroll.BackgroundTransparency = 1
+    rmScroll.Size = UDim2.new(1, -8, 1, -(scrollTop + 4))
+    rmScroll.Position = UDim2.new(0, 4, 0, scrollTop)
+    rmScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    rmScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    rmScroll.ScrollBarThickness = 2
+    rmScroll.ScrollBarImageColor3 = Theme.Accent
+    rmScroll.ScrollBarImageTransparency = 0.5
+    rmScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+    rmScroll.ZIndex = 61
+    rmScroll.Parent = rmFrame
+
+    local rmLayout = Instance.new("UIListLayout")
+    rmLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    rmLayout.Padding = UDim.new(0, 1)
+    rmLayout.Parent = rmScroll
+
+    local rmPad = Instance.new("UIPadding")
+    rmPad.PaddingLeft = UDim.new(0, 4)
+    rmPad.PaddingRight = UDim.new(0, 4)
+    rmPad.PaddingTop = UDim.new(0, 2)
+    rmPad.PaddingBottom = UDim.new(0, 4)
+    rmPad.Parent = rmScroll
+
+    local emptyLabel = Instance.new("TextLabel")
+    emptyLabel.Name = "RMEmpty"
+    emptyLabel.Text = "Waiting for remote calls..."
+    emptyLabel.Font = Theme.Font
+    emptyLabel.TextSize = 12
+    emptyLabel.TextColor3 = Theme.SubText
+    emptyLabel.BackgroundTransparency = 1
+    emptyLabel.Size = UDim2.new(1, -8, 0, 24)
+    emptyLabel.LayoutOrder = 0
+    emptyLabel.Parent = rmScroll
+
+    -- Build monitor data table
+    local monitor = {
+        frame = rmFrame,
+        scroll = rmScroll,
+        toolbar = toolbar,
+        titleBar = titleBar,
+        resizeHandle = resizeHandle,
+        emptyLabel = emptyLabel,
+        searchBox = searchBox,
+        countLabel = totalCountLabel,
+        eventCountLabel = eventCountLabel,
+        funcCountLabel = funcCountLabel,
+        eventCounts = {EVENT = 0, FUNCTION = 0},
+        logCount = 0,
+        paused = false,
+        filters = filterState,
+        open = false,
+        targetH = H,
+        targetW = W,
+    }
+    self._remoteMonitor = monitor
+
+    -- Filter logic
+    local function applyFilters()
+        local searchText = string.lower(searchBox.Text)
+        local visibleCount = 0
+        for _, child in ipairs(rmScroll:GetChildren()) do
+            if child:IsA("Frame") and child.Name:sub(1, 3) == "RM_" then
+                local eventType = child:GetAttribute("EventType")
+                local searchStr = child:GetAttribute("SearchText") or ""
+                local visible = filterState[eventType] ~= false
+                if visible and searchText ~= "" then
+                    visible = string.find(searchStr, searchText, 1, true) ~= nil
+                end
+                child.Visible = visible
+                if visible then visibleCount = visibleCount + 1 end
+            end
+        end
+        emptyLabel.Visible = (monitor.logCount == 0) or (visibleCount == 0)
+        if monitor.logCount == 0 then
+            emptyLabel.Text = "Waiting for remote calls..."
+        elseif visibleCount == 0 then
+            emptyLabel.Text = "No entries match the current filters"
+        end
+    end
+
+    monitor.applyFilters = applyFilters
+
+    searchBox:GetPropertyChangedSignal("Text"):Connect(applyFilters)
+
+    local function setupFilter(btn, eventType, activeColor)
+        btn.MouseButton1Click:Connect(function()
+            filterState[eventType] = not filterState[eventType]
+            if filterState[eventType] then
+                tween(btn, {BackgroundTransparency = 0.2, TextColor3 = activeColor}, 0.15)
+            else
+                tween(btn, {BackgroundTransparency = 0.7, TextColor3 = Color3.fromRGB(100, 100, 100)}, 0.15)
+            end
+            applyFilters()
+        end)
+    end
+
+    setupFilter(eventFilterBtn, "EVENT", Color3.fromRGB(120, 190, 255))
+    setupFilter(funcFilterBtn, "FUNCTION", Color3.fromRGB(200, 140, 255))
+
+    -- Button actions
+    local function flashBtn(btn)
+        tween(btn, {BackgroundColor3 = Theme.Accent, TextColor3 = Theme.Text, BackgroundTransparency = 0.1}, 0.12)
+        task.delay(0.6, function()
+            if not btn:GetAttribute("Hovered") then
+                tween(btn, {BackgroundColor3 = Theme.ToggleOff, TextColor3 = Theme.SubText, BackgroundTransparency = 0.3}, 0.25)
+            end
+        end)
+    end
+
+    pauseBtn.MouseButton1Click:Connect(function()
+        monitor.paused = not monitor.paused
+        pauseBtn.Text = monitor.paused and "Resume" or "Pause"
+        flashBtn(pauseBtn)
+    end)
+
+    copyBtn.MouseButton1Click:Connect(function()
+        local lines = {}
+        for _, child in ipairs(rmScroll:GetChildren()) do
+            if child:IsA("Frame") and child.Name:sub(1, 3) == "RM_" and child.Visible then
+                local info = child:FindFirstChild("RemoteInfo")
+                local time = child:FindFirstChild("RemoteTime")
+                local tag = child:FindFirstChild("RemoteTagBg")
+                local tagLbl = tag and tag:FindFirstChild("RemoteTag")
+                if info and time and tagLbl then
+                    table.insert(lines, "[" .. time.Text .. "] [" .. tagLbl.Text .. "] " .. info.Text)
+                end
+            end
+        end
+        local text = table.concat(lines, "\n")
+        if text ~= "" then
+            if setclipboard then setclipboard(text) elseif toclipboard then toclipboard(text) end
+        end
+        flashBtn(copyBtn)
+    end)
+
+    exportBtn.MouseButton1Click:Connect(function()
+        if type(writefile) ~= "function" then
+            if self.Notify then
+                self:Notify({Text = "Export unavailable: writefile missing", Duration = 4})
+            end
+            return
+        end
+        local lines = {}
+        for _, child in ipairs(rmScroll:GetChildren()) do
+            if child:IsA("Frame") and child.Name:sub(1, 3) == "RM_" and child.Visible then
+                local info = child:FindFirstChild("RemoteInfo")
+                local time = child:FindFirstChild("RemoteTime")
+                local tag = child:FindFirstChild("RemoteTagBg")
+                local tagLbl = tag and tag:FindFirstChild("RemoteTag")
+                if info and time and tagLbl then
+                    table.insert(lines, "[" .. time.Text .. "] [" .. tagLbl.Text .. "] " .. info.Text)
+                end
+            end
+        end
+        local text = table.concat(lines, "\n")
+        local fileName = "RemoteMonitor_" .. os.date("%Y%m%d_%H%M%S") .. ".log"
+        writefile(fileName, text)
+        if self.Notify then
+            self:Notify({Text = "Remote log exported: " .. fileName, Duration = 3})
+        end
+        flashBtn(exportBtn)
+    end)
+
+    clearBtn.MouseButton1Click:Connect(function()
+        for _, child in ipairs(rmScroll:GetChildren()) do
+            if child:IsA("Frame") and child.Name:sub(1, 3) == "RM_" then
+                child:Destroy()
+            end
+        end
+        monitor.logCount = 0
+        monitor.eventCounts = {EVENT = 0, FUNCTION = 0}
+        totalCountLabel.Text = "TOTAL 0"
+        eventCountLabel.Text = "EVENT 0"
+        funcCountLabel.Text = "FUNC 0"
+        emptyLabel.Visible = true
+        emptyLabel.Text = "Waiting for remote calls..."
+        searchBox.Text = ""
+        flashBtn(clearBtn)
+    end)
+
+    -- Register for hooks
+    Library._remoteMonitorSubscribers[self] = monitor
+    self:_installRemoteMonitorHook()
+
+    -- Open animation
+    monitor.open = true
+    tween(rmFrame, {Size = UDim2.new(0, W, 0, H)}, 0.35)
+end
+
+function Library:_toggleRemoteMonitor()
+    if not self._remoteMonitor then
+        self:_createRemoteMonitor()
+        return
+    end
+
+    local rm = self._remoteMonitor
+    if rm.open then
+        rm.open = false
+        tween(rm.frame, {Size = UDim2.new(0, rm.frame.Size.X.Offset, 0, 0)}, 0.3)
+        task.delay(0.35, function()
+            if not rm.open then
+                rm.frame.Visible = false
+            end
+        end)
+    else
+        rm.open = true
+        rm.frame.Visible = true
+        tween(rm.frame, {Size = UDim2.new(0, rm.targetW or rm.frame.Size.X.Offset, 0, rm.targetH)}, 0.3)
+    end
 end
 
 function Library:_toggleStringDumper()
