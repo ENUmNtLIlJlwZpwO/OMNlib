@@ -2589,7 +2589,24 @@ function Library:_refreshGlass()
                 local b = ctb and ctb:FindFirstChild(btnName)
                 if b then b.TextColor3 = Theme.SubText end
             end
-            -- Update log row alternating bg (Glass/Background)
+            -- Toolbar
+            local tb = cf:FindFirstChild("ConsoleToolbar")
+            if tb then
+                tb.BackgroundColor3 = Theme.Glass
+                local sb = tb:FindFirstChild("SearchBox")
+                if sb then
+                    sb.BackgroundColor3 = Theme.Background
+                    sb.TextColor3 = Theme.Text
+                    sb.PlaceholderColor3 = Theme.SubText
+                end
+            end
+            -- New messages indicator
+            local nmi = cf:FindFirstChild("NewMsgIndicator")
+            if nmi then
+                nmi.BackgroundColor3 = Theme.Accent
+                nmi.TextColor3 = Theme.Text
+            end
+            -- Update log row alternating bg (Glass/Background) + stack badges
             local scroll = self._console.scroll
             if scroll then
                 scroll.ScrollBarImageColor3 = Theme.Accent
@@ -2598,6 +2615,11 @@ function Library:_refreshGlass()
                         local num = tonumber(child.Name:sub(5))
                         if num then
                             child.BackgroundColor3 = (num % 2 == 0) and Theme.Glass or Theme.Background
+                        end
+                        local badge = child:FindFirstChild("StackBadge")
+                        if badge then
+                            badge.TextColor3 = Theme.Accent
+                            badge.BackgroundColor3 = Theme.Glass
                         end
                     end
                 end
@@ -2626,7 +2648,7 @@ function Library:_refreshTextColor(c)
     for _, desc in ipairs(self.ScreenGui:GetDescendants()) do
         if desc:IsA("TextLabel") and desc.Name ~= "Check" and desc.Name ~= "Count"
             and desc.Name ~= "LogTime" and desc.Name ~= "LogTag" and desc.Name ~= "LogMsg"
-            and desc.Name ~= "TagText" then
+            and desc.Name ~= "TagText" and desc.Name ~= "StackBadge" then
             desc.TextColor3 = c
         end
     end
@@ -3172,8 +3194,67 @@ function Library:_createConsole()
         end
     end)
 
+    -- ── Toolbar row (search + level filter toggles) ──
+    local TOOLBAR_H = 28
+    local toolbar = Instance.new("Frame")
+    toolbar.Name = "ConsoleToolbar"
+    toolbar.BackgroundColor3 = Theme.Glass
+    toolbar.BackgroundTransparency = 0.5
+    toolbar.Size = UDim2.new(1, -8, 0, TOOLBAR_H)
+    toolbar.Position = UDim2.new(0, 4, 0, TITLE_H + 1)
+    toolbar.ZIndex = 61
+    toolbar.Parent = consoleFrame
+    Instance.new("UICorner", toolbar).CornerRadius = UDim.new(0, 4)
+
+    -- Search box
+    local searchBox = Instance.new("TextBox")
+    searchBox.Name = "SearchBox"
+    searchBox.PlaceholderText = "Search logs..."
+    searchBox.PlaceholderColor3 = Theme.SubText
+    searchBox.Text = ""
+    searchBox.Font = Enum.Font.RobotoMono
+    searchBox.TextSize = 11
+    searchBox.TextColor3 = Theme.Text
+    searchBox.BackgroundColor3 = Theme.Background
+    searchBox.BackgroundTransparency = 0.3
+    searchBox.Size = UDim2.new(1, -210, 0, 20)
+    searchBox.Position = UDim2.new(0, 6, 0.5, -10)
+    searchBox.ClearTextOnFocus = false
+    searchBox.ZIndex = 62
+    searchBox.Parent = toolbar
+    Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 4)
+    local searchPad = Instance.new("UIPadding")
+    searchPad.PaddingLeft = UDim.new(0, 6)
+    searchPad.PaddingRight = UDim.new(0, 6)
+    searchPad.Parent = searchBox
+
+    -- Level toggle buttons (active = show, inactive = hide)
+    local levelFilterState = {info = true, warn = true, error = true}
+
+    local function makeLevelToggle(lvl, label, textColor, bgColor, posFromRight)
+        local btn = Instance.new("TextButton")
+        btn.Name = "Filter_" .. lvl
+        btn.Text = label
+        btn.Font = Theme.FontBold
+        btn.TextSize = 9
+        btn.TextColor3 = textColor
+        btn.BackgroundColor3 = bgColor
+        btn.BackgroundTransparency = 0.2
+        btn.Size = UDim2.new(0, 56, 0, 18)
+        btn.Position = UDim2.new(1, posFromRight, 0.5, -9)
+        btn.AutoButtonColor = false
+        btn.ZIndex = 62
+        btn.Parent = toolbar
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 3)
+        return btn
+    end
+
+    local filterInfoBtn = makeLevelToggle("info", "INFO", Color3.fromRGB(200, 200, 200), Color3.fromRGB(50, 50, 55), -196)
+    local filterWarnBtn = makeLevelToggle("warn", "WARN", Color3.fromRGB(220, 190, 60), Color3.fromRGB(70, 60, 20), -136)
+    local filterErrorBtn = makeLevelToggle("error", "ERROR", Color3.fromRGB(220, 70, 70), Color3.fromRGB(70, 25, 25), -76)
+
     -- ── Log scroll area ──
-    local scrollTop = TITLE_H + 2
+    local scrollTop = TITLE_H + TOOLBAR_H + 4
     local logScroll = Instance.new("ScrollingFrame")
     logScroll.Name = "LogScroll"
     logScroll.BackgroundTransparency = 1
@@ -3200,6 +3281,48 @@ function Library:_createConsole()
     logPad.PaddingBottom = UDim.new(0, 4)
     logPad.Parent = logScroll
 
+    -- ── "New messages!" indicator ──
+    local newMsgLabel = Instance.new("TextButton")
+    newMsgLabel.Name = "NewMsgIndicator"
+    newMsgLabel.Text = "↓ new messages!"
+    newMsgLabel.Font = Theme.FontBold
+    newMsgLabel.TextSize = 11
+    newMsgLabel.TextColor3 = Theme.Text
+    newMsgLabel.BackgroundColor3 = Theme.Accent
+    newMsgLabel.BackgroundTransparency = 0.15
+    newMsgLabel.Size = UDim2.new(0, 130, 0, 22)
+    newMsgLabel.AnchorPoint = Vector2.new(0.5, 1)
+    newMsgLabel.Position = UDim2.new(0.5, 0, 1, -20)
+    newMsgLabel.AutoButtonColor = false
+    newMsgLabel.ZIndex = 65
+    newMsgLabel.Visible = false
+    newMsgLabel.Parent = consoleFrame
+    Instance.new("UICorner", newMsgLabel).CornerRadius = UDim.new(0, 6)
+
+    local userScrolledUp = false
+    local pendingNewMsg = false
+
+    -- Detect scroll position
+    logScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+        local maxScroll = logScroll.AbsoluteCanvasSize.Y - logScroll.AbsoluteSize.Y
+        if maxScroll > 0 and logScroll.CanvasPosition.Y < maxScroll - 5 then
+            userScrolledUp = true
+        else
+            userScrolledUp = false
+            if pendingNewMsg then
+                pendingNewMsg = false
+                newMsgLabel.Visible = false
+            end
+        end
+    end)
+
+    -- Click "new messages!" to jump to bottom
+    newMsgLabel.MouseButton1Click:Connect(function()
+        pendingNewMsg = false
+        newMsgLabel.Visible = false
+        logScroll.CanvasPosition = Vector2.new(0, logScroll.AbsoluteCanvasSize.Y)
+    end)
+
     -- Store refs
     self._console = {
         frame = consoleFrame,
@@ -3215,9 +3338,66 @@ function Library:_createConsole()
         targetH = H,
         targetW = W,
         logEntries = {},
+        logRows = {},
+        lastLogMsg = nil,
+        lastLogLevel = nil,
+        lastLogRow = nil,
+        lastLogStackCount = 0,
         titleBar = titleBar,
         resizeHandle = resizeHandle,
+        toolbar = toolbar,
+        searchBox = searchBox,
+        newMsgLabel = newMsgLabel,
+        userScrolledUp = function() return userScrolledUp end,
+        showNewMsg = function()
+            pendingNewMsg = true
+            newMsgLabel.Visible = true
+        end,
+        levelFilter = levelFilterState,
+        filterBtns = {info = filterInfoBtn, warn = filterWarnBtn, error = filterErrorBtn},
     }
+
+    -- ── Filter apply: show/hide rows based on search + level toggles ──
+    local function applyFilters()
+        local searchText = string.lower(searchBox.Text)
+        local con = self._console
+        for _, rowData in ipairs(con.logRows) do
+            local visible = true
+            -- Level filter
+            if not con.levelFilter[rowData.level] then
+                visible = false
+            end
+            -- Search filter
+            if visible and searchText ~= "" then
+                if not string.find(string.lower(rowData.msg), searchText, 1, true) then
+                    visible = false
+                end
+            end
+            rowData.frame.Visible = visible
+        end
+    end
+
+    -- Wire search box
+    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        applyFilters()
+    end)
+
+    -- Wire level toggle buttons
+    local function setupLevelToggle(btn, lvl, activeBg, activeText)
+        btn.MouseButton1Click:Connect(function()
+            levelFilterState[lvl] = not levelFilterState[lvl]
+            if levelFilterState[lvl] then
+                tween(btn, {BackgroundTransparency = 0.2, TextColor3 = activeText}, 0.15)
+            else
+                tween(btn, {BackgroundTransparency = 0.7, TextColor3 = Color3.fromRGB(100, 100, 100)}, 0.15)
+            end
+            applyFilters()
+        end)
+    end
+
+    setupLevelToggle(filterInfoBtn, "info", Color3.fromRGB(50, 50, 55), Color3.fromRGB(200, 200, 200))
+    setupLevelToggle(filterWarnBtn, "warn", Color3.fromRGB(70, 60, 20), Color3.fromRGB(220, 190, 60))
+    setupLevelToggle(filterErrorBtn, "error", Color3.fromRGB(70, 25, 25), Color3.fromRGB(220, 70, 70))
 
     -- ── Helper: collect all logs as text ──
     local function collectLogText(includeTime)
@@ -3252,6 +3432,11 @@ function Library:_createConsole()
         self._console.warnCount = 0
         self._console.errorCount = 0
         self._console.logEntries = {}
+        self._console.logRows = {}
+        self._console.lastLogMsg = nil
+        self._console.lastLogLevel = nil
+        self._console.lastLogRow = nil
+        self._console.lastLogStackCount = 0
         self:_updateConsoleCounts()
         flashBtn(clearBtn)
     end)
@@ -3313,7 +3498,8 @@ end
 
 function Library:_addLogEntry(level, message, timestamp)
     if not self._console then return end
-    local scroll = self._console.scroll
+    local con = self._console
+    local scroll = con.scroll
 
     -- Fixed log text colors (not theme-dependent)
     local levelColors = {
@@ -3328,28 +3514,52 @@ function Library:_addLogEntry(level, message, timestamp)
         error   = Color3.fromRGB(70, 25, 25),
     }
 
-    self._console.count = self._console.count + 1
-    local idx = self._console.count
+    local timeStr = timestamp and os.date("%H:%M:%S", timestamp) or os.date("%H:%M:%S")
+    local msgText = message or ""
+
+    con.count = con.count + 1
+    local idx = con.count
 
     -- Update per-level counters
     if level == "info" then
-        self._console.infoCount = self._console.infoCount + 1
+        con.infoCount = con.infoCount + 1
     elseif level == "warn" then
-        self._console.warnCount = self._console.warnCount + 1
+        con.warnCount = con.warnCount + 1
     elseif level == "error" then
-        self._console.errorCount = self._console.errorCount + 1
+        con.errorCount = con.errorCount + 1
     end
     self:_updateConsoleCounts()
 
     -- Store for export/copy
-    local timeStr = timestamp and os.date("%H:%M:%S", timestamp) or os.date("%H:%M:%S")
-    local msgText = message or ""
-    table.insert(self._console.logEntries, {
+    table.insert(con.logEntries, {
         time = timeStr,
         level = level,
         msg = msgText,
     })
 
+    -- ── Stack grouping: if same message + level as last, increment counter ──
+    if con.lastLogMsg == msgText and con.lastLogLevel == level and con.lastLogRow then
+        con.lastLogStackCount = con.lastLogStackCount + 1
+        local badge = con.lastLogRow:FindFirstChild("StackBadge")
+        if badge then
+            badge.Text = "×" .. con.lastLogStackCount
+            badge.Visible = true
+        end
+        -- Update time on last row
+        local tl = con.lastLogRow:FindFirstChild("LogTime")
+        if tl then tl.Text = timeStr end
+        -- Show new messages indicator if scrolled up
+        if con.userScrolledUp() then
+            con.showNewMsg()
+        else
+            task.defer(function()
+                scroll.CanvasPosition = Vector2.new(0, scroll.AbsoluteCanvasSize.Y)
+            end)
+        end
+        return
+    end
+
+    -- ── Create new row ──
     local row = Instance.new("Frame")
     row.Name = "Log_" .. idx
     row.BackgroundColor3 = (idx % 2 == 0) and Theme.Glass or Theme.Background
@@ -3396,6 +3606,27 @@ function Library:_addLogEntry(level, message, timestamp)
     tagLabel.ZIndex = 62
     tagLabel.Parent = row
     Instance.new("UICorner", tagLabel).CornerRadius = UDim.new(0, 3)
+
+    -- Stack badge (hidden initially)
+    local stackBadge = Instance.new("TextLabel")
+    stackBadge.Name = "StackBadge"
+    stackBadge.Text = "×2"
+    stackBadge.Font = Theme.FontBold
+    stackBadge.TextSize = 9
+    stackBadge.TextColor3 = Theme.Accent
+    stackBadge.BackgroundColor3 = Theme.Glass
+    stackBadge.BackgroundTransparency = 0.3
+    stackBadge.Size = UDim2.new(0, 0, 0, 14)
+    stackBadge.AutomaticSize = Enum.AutomaticSize.X
+    stackBadge.Position = UDim2.new(0, 100, 0, 1)
+    stackBadge.ZIndex = 63
+    stackBadge.Visible = false
+    stackBadge.Parent = row
+    Instance.new("UICorner", stackBadge).CornerRadius = UDim.new(0, 3)
+    local badgePad = Instance.new("UIPadding")
+    badgePad.PaddingLeft = UDim.new(0, 4)
+    badgePad.PaddingRight = UDim.new(0, 4)
+    badgePad.Parent = stackBadge
 
     -- Message (fixed colors, not theme)
     local msgLabel = Instance.new("TextLabel")
@@ -3446,17 +3677,38 @@ function Library:_addLogEntry(level, message, timestamp)
             toclipboard(line)
         end
         tween(rowCopyBtn, {ImageColor3 = Color3.fromRGB(80, 190, 80)}, 0.12)
-        rowCopyBtn.Image = "rbxassetid://7733970796"
         task.delay(0.6, function()
-            rowCopyBtn.Image = "rbxassetid://7733764083"
             tween(rowCopyBtn, {ImageColor3 = Theme.SubText}, 0.15)
         end)
     end)
 
-    -- Auto-scroll to bottom
-    task.defer(function()
-        scroll.CanvasPosition = Vector2.new(0, scroll.AbsoluteCanvasSize.Y)
-    end)
+    -- Track row for filtering
+    table.insert(con.logRows, {frame = row, level = level, msg = msgText})
+
+    -- Update stack grouping state
+    con.lastLogMsg = msgText
+    con.lastLogLevel = level
+    con.lastLogRow = row
+    con.lastLogStackCount = 1
+
+    -- Apply current filters to new row
+    local visible = true
+    if not con.levelFilter[level] then visible = false end
+    if visible and con.searchBox and con.searchBox.Text ~= "" then
+        if not string.find(string.lower(msgText), string.lower(con.searchBox.Text), 1, true) then
+            visible = false
+        end
+    end
+    row.Visible = visible
+
+    -- Auto-scroll or show new messages indicator
+    if con.userScrolledUp() then
+        con.showNewMsg()
+    else
+        task.defer(function()
+            scroll.CanvasPosition = Vector2.new(0, scroll.AbsoluteCanvasSize.Y)
+        end)
+    end
 end
 
 function Library:_toggleConsole()
