@@ -265,17 +265,17 @@ local function playBootAnimation(screenGui, titleText)
     tween(fill, {Size = UDim2.new(1, 0, 1, 0)}, 0.2)
     task.wait(0.5)
 
-    -- ── Fade out ──
+    -- ── Fade out card only (keep overlay for changelog) ──
     tween(card, {BackgroundTransparency = 1, Size = UDim2.new(0, 290, 0, 120)}, 0.35)
     tween(cardStroke, {Transparency = 1}, 0.35)
     tween(bootTitle, {TextTransparency = 1}, 0.3)
     tween(status, {TextTransparency = 1}, 0.3)
     tween(track, {BackgroundTransparency = 1}, 0.3)
     tween(fill, {BackgroundTransparency = 1}, 0.3)
-    tween(overlay, {BackgroundTransparency = 1}, 0.45)
-    task.wait(0.5)
+    task.wait(0.4)
 
-    bootGui:Destroy()
+    card:Destroy()
+    return bootGui, overlay
 end
 
 -- ═══════════════════════════════════════════════════
@@ -469,7 +469,9 @@ function Library.new(title)
     -- Boot sequence + open animation
     self._bootDone = false
     task.defer(function()
-        playBootAnimation(self.ScreenGui, title or "Glass UI")
+        local bootGui, bootOverlay = playBootAnimation(self.ScreenGui, title or "Glass UI")
+        self._overlayGui = bootGui
+        self._overlayFrame = bootOverlay
         -- Show main frame and animate open
         self.Main.Visible = true
         local mainStroke = self.Main:FindFirstChildOfClass("UIStroke")
@@ -491,6 +493,17 @@ function Library.new(title)
         if self._onReadyCallbacks then
             for _, cb in ipairs(self._onReadyCallbacks) do
                 task.spawn(cb)
+            end
+        end
+        -- If no changelog was shown, fade out overlay
+        task.wait(0.3)
+        if self._overlayGui and not self._changelogOpen then
+            tween(self._overlayFrame, {BackgroundTransparency = 1}, 0.35)
+            task.wait(0.4)
+            if self._overlayGui and not self._changelogOpen then
+                self._overlayGui:Destroy()
+                self._overlayGui = nil
+                self._overlayFrame = nil
             end
         end
     end)
@@ -3013,24 +3026,32 @@ function Library:ShowChangelog(config)
     local entries = config.Entries or {}
     local version = config.Version or "1.0.0"
 
-    -- Dedicated fullscreen GUI for overlay
-    local changelogGui = Instance.new("ScreenGui")
-    changelogGui.Name = "ChangelogScreen"
-    changelogGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    changelogGui.IgnoreGuiInset = true
-    changelogGui.ResetOnSpawn = false
-    changelogGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+    self._changelogOpen = true
 
-    -- Overlay
-    local overlay = Instance.new("Frame")
-    overlay.Name = "ChangelogOverlay"
-    overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    overlay.BackgroundTransparency = 1
-    overlay.Size = UDim2.new(1, 0, 1, 0)
-    overlay.ZIndex = 80
-    overlay.Parent = changelogGui
+    -- Reuse boot overlay if available, otherwise create new one
+    local changelogGui, overlay
+    if self._overlayGui and self._overlayFrame then
+        changelogGui = self._overlayGui
+        overlay = self._overlayFrame
+        overlay.ZIndex = 80
+    else
+        changelogGui = Instance.new("ScreenGui")
+        changelogGui.Name = "ChangelogScreen"
+        changelogGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        changelogGui.IgnoreGuiInset = true
+        changelogGui.ResetOnSpawn = false
+        changelogGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 
-    tween(overlay, {BackgroundTransparency = 0.5}, 0.25)
+        overlay = Instance.new("Frame")
+        overlay.Name = "ChangelogOverlay"
+        overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        overlay.BackgroundTransparency = 1
+        overlay.Size = UDim2.new(1, 0, 1, 0)
+        overlay.ZIndex = 80
+        overlay.Parent = changelogGui
+
+        tween(overlay, {BackgroundTransparency = 0.5}, 0.25)
+    end
 
     -- Modal card
     local modal = Instance.new("Frame")
@@ -3241,12 +3262,16 @@ function Library:ShowChangelog(config)
     end
 
     -- Close function
+    local libSelf = self
     local function closeModal()
         tween(modal, {Size = UDim2.new(0, 340, 0, 0)}, 0.3)
         tween(modalStroke, {Transparency = 1}, 0.25)
         tween(overlay, {BackgroundTransparency = 1}, 0.3)
         task.wait(0.35)
         changelogGui:Destroy()
+        libSelf._changelogOpen = false
+        libSelf._overlayGui = nil
+        libSelf._overlayFrame = nil
     end
 
     closeBtn.MouseEnter:Connect(function() tween(closeBtn, {TextColor3 = Color3.fromRGB(255, 80, 80)}, 0.15) end)
