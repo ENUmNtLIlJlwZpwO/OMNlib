@@ -14,6 +14,7 @@ local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LogService = game:GetService("LogService")
+local TeleportService = game:GetService("TeleportService")
 
 -- ═══════════════════════════════════════════════════
 --  THEME
@@ -2880,6 +2881,12 @@ function Library:AddAdminPanel()
 
     local libSelf = self
 
+    local function notifyAdmin(msg, duration)
+        if libSelf.Notify then
+            libSelf:Notify({Text = msg, Duration = duration or 3})
+        end
+    end
+
     -- ── Col 1: Console button ──
     local ToolsGroup = Admin:AddGroupBox({
         Column = 1,
@@ -2890,6 +2897,62 @@ function Library:AddAdminPanel()
         Text = "Open Console",
         Callback = function()
             libSelf:_toggleConsole()
+        end,
+    })
+
+    ToolsGroup:AddButton({
+        Text = "String Dumper",
+        Callback = function()
+            if type(getgc) ~= "function" then
+                notifyAdmin("String Dumper unavailable: getgc missing", 4)
+                return
+            end
+            if type(writefile) ~= "function" then
+                notifyAdmin("String Dumper unavailable: writefile missing", 4)
+                return
+            end
+
+            local ok, result = pcall(function()
+                local strings = {}
+                local seen = {}
+
+                for _, value in next, getgc(true) do
+                    if type(value) == "table" then
+                        for key, innerValue in next, value do
+                            if type(key) == "string" and (type(innerValue) == "number" or type(innerValue) == "boolean") then
+                                local line = "String: " .. key .. " | Value: " .. tostring(innerValue) .. " | Type: " .. type(innerValue)
+                                if not seen[line] then
+                                    seen[line] = true
+                                    table.insert(strings, line)
+                                end
+                            end
+                        end
+                    end
+                end
+
+                table.sort(strings)
+                writefile("StringDumped.lua", table.concat(strings, "\n"))
+                return #strings
+            end)
+
+            if ok then
+                notifyAdmin("String dump saved: " .. tostring(result) .. " entries", 4)
+            else
+                notifyAdmin("String dump failed", 4)
+                warn("[GlassUI] String Dumper error:", result)
+            end
+        end,
+    })
+
+    local SessionGroup = Admin:AddGroupBox({
+        Column = 2,
+        Text = "Session",
+    })
+
+    SessionGroup:AddButton({
+        Text = "Rejoin Server",
+        Callback = function()
+            TeleportService:Teleport(game.PlaceId, Players.LocalPlayer)
         end,
     })
 
