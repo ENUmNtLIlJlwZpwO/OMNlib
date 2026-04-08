@@ -3284,7 +3284,7 @@ function Library:_createConsole()
     -- ── "New messages!" indicator ──
     local newMsgLabel = Instance.new("TextButton")
     newMsgLabel.Name = "NewMsgIndicator"
-    newMsgLabel.Text = "↓ new messages!"
+    newMsgLabel.Text = "↓ new logs ↓"
     newMsgLabel.Font = Theme.FontBold
     newMsgLabel.TextSize = 11
     newMsgLabel.TextColor3 = Theme.Text
@@ -3618,7 +3618,7 @@ function Library:_addLogEntry(level, message, timestamp)
     stackBadge.BackgroundTransparency = 0.3
     stackBadge.Size = UDim2.new(0, 0, 0, 14)
     stackBadge.AutomaticSize = Enum.AutomaticSize.X
-    stackBadge.Position = UDim2.new(0, 100, 0, 1)
+    stackBadge.Position = UDim2.new(0, 102, 0, 1)
     stackBadge.ZIndex = 63
     stackBadge.Visible = false
     stackBadge.Parent = row
@@ -3628,7 +3628,8 @@ function Library:_addLogEntry(level, message, timestamp)
     badgePad.PaddingRight = UDim.new(0, 4)
     badgePad.Parent = stackBadge
 
-    -- Message (fixed colors, not theme)
+    -- Décalage du message pour laisser la place au badge
+    -- Si le badge est visible, le texte commence après le badge
     local msgLabel = Instance.new("TextLabel")
     msgLabel.Name = "LogMsg"
     msgLabel.Text = msgText
@@ -3636,13 +3637,25 @@ function Library:_addLogEntry(level, message, timestamp)
     msgLabel.TextSize = 11
     msgLabel.TextColor3 = levelColors[level] or Color3.fromRGB(200, 200, 200)
     msgLabel.BackgroundTransparency = 1
-    msgLabel.Size = UDim2.new(1, -106, 0, 0)
+    -- La position X dépend de la largeur du badge (mais comme badge invisible au début, on réserve l'espace)
+    msgLabel.Position = UDim2.new(0, 102 + 32, 0, 0) -- 32px de marge pour le badge
+    msgLabel.Size = UDim2.new(1, -106 - 32, 0, 0)
     msgLabel.AutomaticSize = Enum.AutomaticSize.Y
-    msgLabel.Position = UDim2.new(0, 102, 0, 0)
     msgLabel.TextXAlignment = Enum.TextXAlignment.Left
     msgLabel.TextWrapped = true
     msgLabel.ZIndex = 62
     msgLabel.Parent = row
+
+    -- Quand le badge devient visible, on ajuste la position du texte (optionnel, car on réserve déjà l'espace)
+    stackBadge:GetPropertyChangedSignal("Visible"):Connect(function()
+        if stackBadge.Visible then
+            msgLabel.Position = UDim2.new(0, 102 + stackBadge.AbsoluteSize.X + 8, 0, 0)
+            msgLabel.Size = UDim2.new(1, -106 - stackBadge.AbsoluteSize.X - 8, 0, 0)
+        else
+            msgLabel.Position = UDim2.new(0, 102 + 32, 0, 0)
+            msgLabel.Size = UDim2.new(1, -106 - 32, 0, 0)
+        end
+    end)
 
     -- Per-row copy icon (hidden by default, appears on hover)
     local rowCopyBtn = Instance.new("ImageButton")
