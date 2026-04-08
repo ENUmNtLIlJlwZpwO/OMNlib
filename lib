@@ -2573,16 +2573,22 @@ function Library:_refreshGlass()
                 local ct = ctb:FindFirstChild("ConsoleTitle")
                 if ct then ct.TextColor3 = Theme.Text end
             end
-            -- Update header button backgrounds
+            -- Update header action buttons (only if not hovered)
             for _, btnName in ipairs({"Export", "Copy", "Clear"}) do
                 local b = ctb and ctb:FindFirstChild(btnName)
                 if b then
-                    b.BackgroundColor3 = Theme.ToggleOff
-                    b.TextColor3 = Theme.SubText
+                    if not b:GetAttribute("Hovered") then
+                        b.BackgroundColor3 = Theme.ToggleOff
+                        b.TextColor3 = Theme.SubText
+                        b.BackgroundTransparency = 0.3
+                    end
                 end
             end
-            local cls = ctb and ctb:FindFirstChild("ConsoleClose")
-            if cls then cls.TextColor3 = Theme.SubText end
+            -- Window control buttons
+            for _, btnName in ipairs({"ConsoleClose", "ConsoleMin", "ConsoleMax"}) do
+                local b = ctb and ctb:FindFirstChild(btnName)
+                if b then b.TextColor3 = Theme.SubText end
+            end
             -- Update log row alternating bg (Glass/Background)
             local scroll = self._console.scroll
             if scroll then
@@ -2874,15 +2880,18 @@ end
 function Library:_createConsole()
     local W, H = 520, 340
     local MIN_W, MIN_H = 360, 200
-    local MAX_W, MAX_H = 900, 600
     local TITLE_H = 32
+
+    -- Position to the LEFT of the main GUI
+    local mainPos = self.Main.AbsolutePosition
+    local consoleX = mainPos.X - W - 10
 
     local consoleFrame = Instance.new("Frame")
     consoleFrame.Name = "ConsoleWindow"
     consoleFrame.BackgroundColor3 = Theme.Background
     consoleFrame.BackgroundTransparency = 0.05
     consoleFrame.Size = UDim2.new(0, W, 0, 0)
-    consoleFrame.Position = UDim2.new(0.5, -W / 2, 0.5, 0)
+    consoleFrame.Position = UDim2.new(0, math.max(consoleX, 4), 0.5, 0)
     consoleFrame.AnchorPoint = Vector2.new(0, 0.5)
     consoleFrame.ClipsDescendants = true
     consoleFrame.ZIndex = 60
@@ -2963,14 +2972,57 @@ function Library:_createConsole()
         btn.ZIndex = 62
         btn.Parent = titleBar
         Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
-        btn.MouseEnter:Connect(function() tween(btn, {BackgroundTransparency = 0.1}, 0.15) end)
-        btn.MouseLeave:Connect(function() tween(btn, {BackgroundTransparency = 0.3}, 0.15) end)
+
+        local isHovered = false
+        btn.MouseEnter:Connect(function()
+            isHovered = true
+            tween(btn, {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.15, TextColor3 = Theme.Text}, 0.2)
+        end)
+        btn.MouseLeave:Connect(function()
+            isHovered = false
+            tween(btn, {BackgroundColor3 = Theme.ToggleOff, BackgroundTransparency = 0.3, TextColor3 = Theme.SubText}, 0.2)
+        end)
+        -- Store hover state for theme refresh
+        btn:SetAttribute("Hovered", false)
+        btn.MouseEnter:Connect(function() btn:SetAttribute("Hovered", true) end)
+        btn.MouseLeave:Connect(function() btn:SetAttribute("Hovered", false) end)
+
         return btn
     end
 
-    local exportBtn = makeHeaderBtn("Export", "Export", -182)
-    local copyBtn   = makeHeaderBtn("Copy", "Copy", -134)
-    local clearBtn  = makeHeaderBtn("Clear", "Clear", -86)
+    local exportBtn = makeHeaderBtn("Export", "Export", -220)
+    local copyBtn   = makeHeaderBtn("Copy", "Copy", -172)
+    local clearBtn  = makeHeaderBtn("Clear", "Clear", -124)
+
+    -- Minimize button (same style as main HUD)
+    local minBtn = Instance.new("TextButton")
+    minBtn.Name = "ConsoleMin"
+    minBtn.Text = "–"
+    minBtn.Font = Theme.Font
+    minBtn.TextSize = 20
+    minBtn.TextColor3 = Theme.SubText
+    minBtn.BackgroundTransparency = 1
+    minBtn.Size = UDim2.new(0, 32, 0, TITLE_H)
+    minBtn.Position = UDim2.new(1, -100, 0, 0)
+    minBtn.ZIndex = 62
+    minBtn.Parent = titleBar
+    minBtn.MouseEnter:Connect(function() tween(minBtn, {TextColor3 = Theme.Accent}, 0.15) end)
+    minBtn.MouseLeave:Connect(function() tween(minBtn, {TextColor3 = Theme.SubText}, 0.15) end)
+
+    -- Fullscreen button
+    local maxBtn = Instance.new("TextButton")
+    maxBtn.Name = "ConsoleMax"
+    maxBtn.Text = "□"
+    maxBtn.Font = Theme.Font
+    maxBtn.TextSize = 16
+    maxBtn.TextColor3 = Theme.SubText
+    maxBtn.BackgroundTransparency = 1
+    maxBtn.Size = UDim2.new(0, 32, 0, TITLE_H)
+    maxBtn.Position = UDim2.new(1, -68, 0, 0)
+    maxBtn.ZIndex = 62
+    maxBtn.Parent = titleBar
+    maxBtn.MouseEnter:Connect(function() tween(maxBtn, {TextColor3 = Theme.Accent}, 0.15) end)
+    maxBtn.MouseLeave:Connect(function() tween(maxBtn, {TextColor3 = Theme.SubText}, 0.15) end)
 
     -- Close button (same style as main HUD)
     local closeBtn = Instance.new("TextButton")
@@ -2984,11 +3036,55 @@ function Library:_createConsole()
     closeBtn.Position = UDim2.new(1, -38, 0, 0)
     closeBtn.ZIndex = 62
     closeBtn.Parent = titleBar
-
     closeBtn.MouseEnter:Connect(function() tween(closeBtn, {TextColor3 = Color3.fromRGB(255, 80, 80)}, 0.15) end)
     closeBtn.MouseLeave:Connect(function() tween(closeBtn, {TextColor3 = Theme.SubText}, 0.15) end)
     closeBtn.MouseButton1Click:Connect(function()
         self:_toggleConsole()
+    end)
+
+    -- ── Minimize / Maximize logic ──
+    local consoleMinimized = false
+    local consoleMaximized = false
+    local preMaxPos, preMaxSize
+
+    minBtn.MouseButton1Click:Connect(function()
+        if consoleMinimized then
+            consoleMinimized = false
+            tween(consoleFrame, {Size = UDim2.new(0, consoleFrame.Size.X.Offset, 0, self._console.targetH)}, 0.3)
+        else
+            consoleMinimized = true
+            if consoleMaximized then
+                consoleMaximized = false
+                maxBtn.Text = "□"
+            end
+            tween(consoleFrame, {Size = UDim2.new(0, consoleFrame.Size.X.Offset, 0, TITLE_H)}, 0.3)
+        end
+    end)
+
+    maxBtn.MouseButton1Click:Connect(function()
+        if consoleMinimized then
+            consoleMinimized = false
+        end
+        if consoleMaximized then
+            consoleMaximized = false
+            maxBtn.Text = "□"
+            tween(consoleFrame, {Size = preMaxSize, Position = preMaxPos}, 0.3)
+            self._console.targetW = preMaxSize.X.Offset
+            self._console.targetH = preMaxSize.Y.Offset
+        else
+            consoleMaximized = true
+            maxBtn.Text = "❐"
+            preMaxPos = consoleFrame.Position
+            preMaxSize = consoleFrame.Size
+            local vp = workspace.CurrentCamera.ViewportSize
+            tween(consoleFrame, {
+                Size = UDim2.new(0, vp.X - 8, 0, vp.Y - 8),
+                Position = UDim2.new(0, 4, 0, 4),
+            }, 0.3)
+            consoleFrame.AnchorPoint = Vector2.new(0, 0)
+            self._console.targetW = vp.X - 8
+            self._console.targetH = vp.Y - 8
+        end
     end)
 
     -- ── Drag ──
@@ -3015,10 +3111,16 @@ function Library:_createConsole()
                 startPos.X.Scale, startPos.X.Offset + delta.X,
                 startPos.Y.Scale, startPos.Y.Offset + delta.Y
             )
+            -- Exit maximized if user drags
+            if consoleMaximized then
+                consoleMaximized = false
+                maxBtn.Text = "□"
+                consoleFrame.AnchorPoint = Vector2.new(0, 0.5)
+            end
         end
     end)
 
-    -- ── Edge resize (bottom-right corner drag) ──
+    -- ── Edge resize (bottom-right corner drag, no upper limit) ──
     local resizeHandle = Instance.new("TextButton")
     resizeHandle.Name = "ResizeHandle"
     resizeHandle.Text = ""
@@ -3032,7 +3134,6 @@ function Library:_createConsole()
     resizeHandle.Parent = consoleFrame
     Instance.new("UICorner", resizeHandle).CornerRadius = UDim.new(0, 3)
 
-    -- Two small diagonal lines inside the grip
     for i = 1, 2 do
         local dot = Instance.new("Frame")
         dot.Name = "Grip" .. i
@@ -3063,8 +3164,8 @@ function Library:_createConsole()
     UserInputService.InputChanged:Connect(function(input)
         if resizing and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             local delta = input.Position - resizeStart
-            local newW2 = math.clamp(resizeSizeStart.X + delta.X, MIN_W, MAX_W)
-            local newH2 = math.clamp(resizeSizeStart.Y + delta.Y, MIN_H, MAX_H)
+            local newW2 = math.max(resizeSizeStart.X + delta.X, MIN_W)
+            local newH2 = math.max(resizeSizeStart.Y + delta.Y, MIN_H)
             consoleFrame.Size = UDim2.new(0, newW2, 0, newH2)
             self._console.targetH = newH2
             self._console.targetW = newW2
@@ -3131,6 +3232,16 @@ function Library:_createConsole()
         return table.concat(lines, "\n")
     end
 
+    -- ── Button feedback (flash accent then restore) ──
+    local function flashBtn(btn)
+        tween(btn, {BackgroundColor3 = Theme.Accent, TextColor3 = Theme.Text, BackgroundTransparency = 0.1}, 0.12)
+        task.delay(0.6, function()
+            if not btn:GetAttribute("Hovered") then
+                tween(btn, {BackgroundColor3 = Theme.ToggleOff, TextColor3 = Theme.SubText, BackgroundTransparency = 0.3}, 0.25)
+            end
+        end)
+    end
+
     -- Clear handler
     clearBtn.MouseButton1Click:Connect(function()
         for _, child in ipairs(logScroll:GetChildren()) do
@@ -3142,6 +3253,7 @@ function Library:_createConsole()
         self._console.errorCount = 0
         self._console.logEntries = {}
         self:_updateConsoleCounts()
+        flashBtn(clearBtn)
     end)
 
     -- Copy handler (without timestamps)
@@ -3152,10 +3264,7 @@ function Library:_createConsole()
         elseif toclipboard then
             toclipboard(text)
         end
-        tween(copyBtn, {TextColor3 = Color3.fromRGB(80, 190, 80)}, 0.15)
-        task.delay(0.8, function()
-            tween(copyBtn, {TextColor3 = Theme.SubText}, 0.15)
-        end)
+        flashBtn(copyBtn)
     end)
 
     -- Export handler (writefile to executor workspace, with timestamps)
@@ -3165,10 +3274,7 @@ function Library:_createConsole()
         if writefile then
             writefile(fileName, text)
         end
-        tween(exportBtn, {TextColor3 = Color3.fromRGB(80, 190, 80)}, 0.15)
-        task.delay(0.8, function()
-            tween(exportBtn, {TextColor3 = Theme.SubText}, 0.15)
-        end)
+        flashBtn(exportBtn)
     end)
 
     -- ── Hook LogService (real F9 output) ──
@@ -3237,10 +3343,11 @@ function Library:_addLogEntry(level, message, timestamp)
 
     -- Store for export/copy
     local timeStr = timestamp and os.date("%H:%M:%S", timestamp) or os.date("%H:%M:%S")
+    local msgText = message or ""
     table.insert(self._console.logEntries, {
         time = timeStr,
         level = level,
-        msg = message or "",
+        msg = msgText,
     })
 
     local row = Instance.new("Frame")
@@ -3258,6 +3365,7 @@ function Library:_addLogEntry(level, message, timestamp)
     rowPad.PaddingTop = UDim.new(0, 2)
     rowPad.PaddingBottom = UDim.new(0, 2)
     rowPad.PaddingLeft = UDim.new(0, 4)
+    rowPad.PaddingRight = UDim.new(0, 22)
     rowPad.Parent = row
 
     -- Timestamp
@@ -3292,7 +3400,7 @@ function Library:_addLogEntry(level, message, timestamp)
     -- Message (fixed colors, not theme)
     local msgLabel = Instance.new("TextLabel")
     msgLabel.Name = "LogMsg"
-    msgLabel.Text = message or ""
+    msgLabel.Text = msgText
     msgLabel.Font = Enum.Font.RobotoMono
     msgLabel.TextSize = 11
     msgLabel.TextColor3 = levelColors[level] or Color3.fromRGB(200, 200, 200)
@@ -3304,6 +3412,46 @@ function Library:_addLogEntry(level, message, timestamp)
     msgLabel.TextWrapped = true
     msgLabel.ZIndex = 62
     msgLabel.Parent = row
+
+    -- Per-row copy icon (hidden by default, appears on hover)
+    local rowCopyBtn = Instance.new("TextButton")
+    rowCopyBtn.Name = "RowCopy"
+    rowCopyBtn.Text = "📋"
+    rowCopyBtn.Font = Enum.Font.RobotoMono
+    rowCopyBtn.TextSize = 12
+    rowCopyBtn.TextColor3 = Theme.SubText
+    rowCopyBtn.BackgroundTransparency = 1
+    rowCopyBtn.Size = UDim2.new(0, 18, 0, 16)
+    rowCopyBtn.AnchorPoint = Vector2.new(1, 0)
+    rowCopyBtn.Position = UDim2.new(1, 18, 0, 0)
+    rowCopyBtn.ZIndex = 63
+    rowCopyBtn.AutoButtonColor = false
+    rowCopyBtn.Visible = false
+    rowCopyBtn.Parent = row
+
+    -- Hover show/hide copy icon
+    row.MouseEnter:Connect(function()
+        rowCopyBtn.Visible = true
+        tween(row, {BackgroundTransparency = 0.3}, 0.1)
+    end)
+    row.MouseLeave:Connect(function()
+        rowCopyBtn.Visible = false
+        tween(row, {BackgroundTransparency = 0.5}, 0.1)
+    end)
+
+    -- Copy single line
+    rowCopyBtn.MouseButton1Click:Connect(function()
+        local line = string.format("[%s] %s", string.upper(level), msgText)
+        if setclipboard then
+            setclipboard(line)
+        elseif toclipboard then
+            toclipboard(line)
+        end
+        rowCopyBtn.Text = "✓"
+        task.delay(0.6, function()
+            rowCopyBtn.Text = "📋"
+        end)
+    end)
 
     -- Auto-scroll to bottom
     task.defer(function()
