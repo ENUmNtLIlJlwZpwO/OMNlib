@@ -3013,6 +3013,14 @@ function Library:ShowChangelog(config)
     local entries = config.Entries or {}
     local version = config.Version or "1.0.0"
 
+    -- Dedicated fullscreen GUI for overlay
+    local changelogGui = Instance.new("ScreenGui")
+    changelogGui.Name = "ChangelogScreen"
+    changelogGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    changelogGui.IgnoreGuiInset = true
+    changelogGui.ResetOnSpawn = false
+    changelogGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+
     -- Overlay
     local overlay = Instance.new("Frame")
     overlay.Name = "ChangelogOverlay"
@@ -3020,7 +3028,7 @@ function Library:ShowChangelog(config)
     overlay.BackgroundTransparency = 1
     overlay.Size = UDim2.new(1, 0, 1, 0)
     overlay.ZIndex = 80
-    overlay.Parent = self.ScreenGui
+    overlay.Parent = changelogGui
 
     tween(overlay, {BackgroundTransparency = 0.5}, 0.25)
 
@@ -3034,7 +3042,7 @@ function Library:ShowChangelog(config)
     modal.AnchorPoint = Vector2.new(0.5, 0.5)
     modal.ClipsDescendants = true
     modal.ZIndex = 81
-    modal.Parent = self.ScreenGui
+    modal.Parent = changelogGui
     Instance.new("UICorner", modal).CornerRadius = Theme.CornerRadius
 
     local modalStroke = Instance.new("UIStroke")
@@ -3179,8 +3187,8 @@ function Library:ShowChangelog(config)
             for j, change in ipairs(entry.Changes) do
                 local tag = change.Tag or "fix"
                 local tagColors = {
-                    add = Theme.Accent,
-                    fix = Color3.fromRGB(80, 180, 80),
+                    add = Color3.fromRGB(80, 190, 80),
+                    fix = Color3.fromRGB(80, 140, 220),
                     remove = Color3.fromRGB(200, 80, 80),
                     change = Color3.fromRGB(200, 180, 60),
                 }
@@ -3238,8 +3246,7 @@ function Library:ShowChangelog(config)
         tween(modalStroke, {Transparency = 1}, 0.25)
         tween(overlay, {BackgroundTransparency = 1}, 0.3)
         task.wait(0.35)
-        overlay:Destroy()
-        modal:Destroy()
+        changelogGui:Destroy()
     end
 
     closeBtn.MouseEnter:Connect(function() tween(closeBtn, {TextColor3 = Color3.fromRGB(255, 80, 80)}, 0.15) end)
