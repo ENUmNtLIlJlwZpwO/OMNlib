@@ -3785,30 +3785,36 @@ function Library:_installRemoteMonitorHook()
     oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self2, ...)
         local method = getnamecallmethod()
         if not checkcaller() then
-            local className = ""
-            pcall(function() className = self2.ClassName end)
-            if className == "RemoteEvent" or className == "RemoteFunction"
-                or className == "UnreliableRemoteEvent" then
-                local args = {...}
-                local remoteName = ""
-                pcall(function() remoteName = self2.Name end)
-                local remotePath = ""
-                pcall(function() remotePath = self2:GetFullName() end)
-                for _, monitor in pairs(Library._remoteMonitorSubscribers) do
-                    if monitor and not monitor.paused then
-                        Library:_pushRemoteMonitorEntry(monitor, {
-                            eventType = "EVENT",
-                            method = method,
-                            remoteName = remoteName,
-                            remotePath = remotePath,
-                            className = className,
-                            args = args,
-                        })
-                    end
+            -- Only capture actual remote fire/invoke calls
+            if method == "FireServer" or method == "InvokeServer" or method == "Fire" then
+                local ok, className = pcall(function() return self2.ClassName end)
+                if ok and (className == "RemoteEvent" or className == "RemoteFunction"
+                    or className == "UnreliableRemoteEvent") then
+                    local args = {...}
+                    local remoteName = ""
+                    pcall(function() remoteName = self2.Name end)
+                    local remotePath = ""
+                    pcall(function() remotePath = self2:GetFullName() end)
+                    -- Defer to avoid errors from UI work inside metamethod
+                    task.defer(function()
+                        for _, monitor in pairs(Library._remoteMonitorSubscribers) do
+                            if monitor and not monitor.paused then
+                                pcall(Library._pushRemoteMonitorEntry, Library, monitor, {
+                                    eventType = "EVENT",
+                                    method = method,
+                                    remoteName = remoteName,
+                                    remotePath = remotePath,
+                                    className = className,
+                                    args = args,
+                                })
+                            end
+                        end
+                    end)
                 end
             end
         end
         return oldNamecall(self2, ...)
+    end))
     end))
 end
 
@@ -3816,7 +3822,7 @@ function Library:_pushRemoteMonitorEntry(monitor, data)
     if not monitor or not monitor.scroll then return end
 
     local MAX_ROWS = 500
-    local DEDUP_WINDOW = 1 -- seconds
+    local DEDUP_WINDOW = 3 -- seconds
 
     -- Dedup key: same remote + method within DEDUP_WINDOW
     local dedupKey = data.remoteName .. ":" .. data.method
@@ -3827,19 +3833,23 @@ function Library:_pushRemoteMonitorEntry(monitor, data)
         -- Stack duplicate: increment counter
         existing.count = existing.count + 1
         existing.lastTime = now
-        local badge = existing.row:FindFirstChild("StackBadge")
-        if badge then
-            badge.Text = "x" .. existing.count
-            badge.Visible = true
-        end
+        pcall(function()
+            local badge = existing.row:FindFirstChild("StackBadge")
+            if badge then
+                badge.Text = "x" .. existing.count
+                badge.Visible = true
+            end
+        end)
         -- Update counter totals
+        monitor.logCount = (monitor.logCount or 0) + 1
         local eventCounts = monitor.eventCounts or {EVENT = 0, FUNCTION = 0}
         eventCounts[data.eventType] = (eventCounts[data.eventType] or 0) + 1
         monitor.eventCounts = eventCounts
-        monitor.logCount = (monitor.logCount or 0) + 1
-        if monitor.countLabel then monitor.countLabel.Text = "TOTAL " .. monitor.logCount end
-        if monitor.eventCountLabel then monitor.eventCountLabel.Text = "EVENT " .. (eventCounts.EVENT or 0) end
-        if monitor.funcCountLabel then monitor.funcCountLabel.Text = "FUNC " .. (eventCounts.FUNCTION or 0) end
+        pcall(function()
+            if monitor.countLabel then monitor.countLabel.Text = "TOTAL " .. monitor.logCount end
+            if monitor.eventCountLabel then monitor.eventCountLabel.Text = "EVENT " .. (eventCounts.EVENT or 0) end
+            if monitor.funcCountLabel then monitor.funcCountLabel.Text = "FUNC " .. (eventCounts.FUNCTION or 0) end
+        end)
         return
     end
 
