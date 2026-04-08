@@ -2475,6 +2475,10 @@ function Library:_refreshAccent(c)
         self._remoteSpy.scroll.ScrollBarImageColor3 = c
     end
 
+    if self._remoteSpy and self._remoteSpy.detailScroll then
+        self._remoteSpy.detailScroll.ScrollBarImageColor3 = c
+    end
+
 end
 
 function Library:_refreshGlass()
@@ -2774,7 +2778,7 @@ function Library:_refreshGlass()
                     detailScroll.ScrollBarImageColor3 = Theme.Accent
                     for _, child in ipairs(detailScroll:GetChildren()) do
                         if child:IsA("TextLabel") then
-                            if child.Name == "RSDetailTitle" or child.Name == "RSDetailName" or child.Name == "RSDetailArgs" or child.Name == "RSDetailReplay" then
+                            if child.Name == "RSDetailTitle" or child.Name == "RSDetailName" or child.Name == "RSDetailArgs" or child.Name == "RSDetailReturns" or child.Name == "RSDetailReplay" then
                                 child.TextColor3 = Theme.Text
                             else
                                 child.TextColor3 = Theme.SubText
@@ -2811,6 +2815,7 @@ function Library:_refreshTextColor(c)
             and desc.Name ~= "RSName" and desc.Name ~= "RSArgs"
             and desc.Name ~= "RSDetailEmpty" and desc.Name ~= "RSDetailPath"
             and desc.Name ~= "RSDetailCaller" and desc.Name ~= "RSDetailTime"
+            and desc.Name ~= "RSDetailReturns"
             then
             desc.TextColor3 = c
         end
@@ -3928,7 +3933,7 @@ function Library:_installRemoteSpyHook()
     local libSelf = self
     local STACK_LEVEL = 4
 
-    local function onReceive(remote, args, isEvent)
+    local function onReceive(remote, args, isEvent, returns)
         if not libSelf._remoteSpyActive then return end
 
         local callerScript
@@ -3957,6 +3962,8 @@ function Library:_installRemoteSpyHook()
             remoteType = isEvent and "EVENT" or "FUNCTION",
             args = args,
             argsStr = _rsFormatArgs(args),
+            returns = returns,
+            returnsStr = returns and _rsFormatArgs(returns) or nil,
             caller = callerScript and tostring(callerScript) or "Unknown",
             traceback = traceback,
             time = os.clock(),
@@ -3987,10 +3994,12 @@ function Library:_installRemoteSpyHook()
     pcall(function()
         local InvokeServer = Instance.new("RemoteFunction").InvokeServer
         refs.InvokeServer = hookfunction(InvokeServer, function(self2, ...)
+            local args = {...}
+            local results = table.pack(refs.InvokeServer(self2, ...))
             if self2 and typeof(self2) == "Instance" and IsA(self2, "RemoteFunction") and libSelf._remoteSpyActive then
-                task.defer(onReceive, self2, {...}, false)
+                task.defer(onReceive, self2, args, false, results)
             end
-            return refs.InvokeServer(self2, ...)
+            return table.unpack(results, 1, results.n)
         end)
     end)
 
@@ -3998,11 +4007,14 @@ function Library:_installRemoteSpyHook()
         if not hookmetamethod or not getnamecallmethod then return end
         refs.__namecall = hookmetamethod(game, "__namecall", function(self2, ...)
             local method = getnamecallmethod()
+            local args = {...}
             if libSelf._remoteSpyActive then
                 if method == "FireServer" and IsA(self2, "RemoteEvent") then
-                    task.defer(onReceive, self2, {...}, true)
+                    task.defer(onReceive, self2, args, true)
                 elseif method == "InvokeServer" and IsA(self2, "RemoteFunction") then
-                    task.defer(onReceive, self2, {...}, false)
+                    local results = table.pack(refs.__namecall(self2, ...))
+                    task.defer(onReceive, self2, args, false, results)
+                    return table.unpack(results, 1, results.n)
                 end
             end
             return refs.__namecall(self2, ...)
@@ -4097,7 +4109,7 @@ function Library:_createRemoteSpy()
 
     local totalTag = makeStatTag("RSTotalCount", "TOTAL", Color3.fromRGB(210, 210, 215), Color3.fromRGB(50, 50, 55), 104)
     local eventTag = makeStatTag("RSEventCount", "EVENT", Color3.fromRGB(255, 180, 100), Color3.fromRGB(70, 50, 30), 166)
-    local funcTag = makeStatTag("RSFuncCount", "FUNC", Color3.fromRGB(120, 190, 255), Color3.fromRGB(30, 50, 70), 240)
+    local funcTag = makeStatTag("RSFuncCount", "FUNC", Color3.fromRGB(120, 190, 255), Color3.fromRGB(30, 50, 70), 228)
 
     -- Header buttons
     local function makeHeaderBtn(name, text, posFromRight)
@@ -4128,10 +4140,10 @@ function Library:_createRemoteSpy()
         return btn
     end
 
-    local pauseBtn = makeHeaderBtn("Pause", "Pause", -392)
-    local exportBtn = makeHeaderBtn("Export", "Export", -340)
-    local copyBtn = makeHeaderBtn("Copy", "Copy", -288)
-    local clearBtn = makeHeaderBtn("Clear", "Clear", -236)
+    local pauseBtn = makeHeaderBtn("Pause", "Pause", -324)
+    local exportBtn = makeHeaderBtn("Export", "Export", -272)
+    local copyBtn = makeHeaderBtn("Copy", "Copy", -220)
+    local clearBtn = makeHeaderBtn("Clear", "Clear", -168)
 
     -- Window controls (–, □, ×)
     local minBtn = Instance.new("TextButton")
@@ -4491,6 +4503,7 @@ function Library:_createRemoteSpy()
     local detailCaller = makeDetailText("RSDetailCaller", 11, Theme.SubText)
     local detailTime = makeDetailText("RSDetailTime", 11, Theme.SubText)
     local detailArgs = makeDetailText("RSDetailArgs", 11, Theme.Text)
+    local detailReturns = makeDetailText("RSDetailReturns", 11, Theme.Text)
     local detailReplay = makeDetailText("RSDetailReplay", 11, Theme.Text)
 
     -- State
@@ -4562,6 +4575,7 @@ function Library:_createRemoteSpy()
         detailCaller.Visible = hasEntry
         detailTime.Visible = hasEntry
         detailArgs.Visible = hasEntry
+        detailReturns.Visible = hasEntry and entry.returns ~= nil
         detailReplay.Visible = hasEntry
 
         if not hasEntry then
@@ -4574,6 +4588,11 @@ function Library:_createRemoteSpy()
         detailCaller.Text = "Caller: " .. entry.caller
         detailTime.Text = "Time: " .. string.format("%.3f", entry.time)
         detailArgs.Text = "Arguments:\n" .. _rsCodeifyTable(entry.args)
+        if entry.returns then
+            detailReturns.Text = "Returns:\n" .. _rsCodeifyTable(entry.returns)
+        else
+            detailReturns.Text = ""
+        end
         detailReplay.Text = "Replay:\n" .. buildReplayCode(entry)
     end
 
@@ -4802,6 +4821,9 @@ function Library:_createRemoteSpy()
                 table.insert(lines, "[" .. e.remoteType .. "] " .. e.name .. " — " .. e.path)
                 table.insert(lines, "  Caller: " .. e.caller)
                 table.insert(lines, "  Args: " .. e.argsStr)
+                if e.returnsStr then
+                    table.insert(lines, "  Returns: " .. e.returnsStr)
+                end
                 table.insert(lines, "  Code:")
                 table.insert(lines, "    local remote = " .. e.path)
                 table.insert(lines, "    local arguments = " .. _rsCodeifyTable(e.args))
@@ -4809,6 +4831,9 @@ function Library:_createRemoteSpy()
                     table.insert(lines, "    remote:FireServer(unpack(arguments))")
                 else
                     table.insert(lines, "    local results = remote:InvokeServer(unpack(arguments))")
+                    if e.returns then
+                        table.insert(lines, "    -- Returns: " .. _rsCodeifyTableFlat(e.returns))
+                    end
                 end
                 table.insert(lines, "")
             end
