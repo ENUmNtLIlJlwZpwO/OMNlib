@@ -105,9 +105,9 @@ local function makeColumn(parent, index, totalCols, gap, padX, padY)
     col.BackgroundTransparency = 1
     col.Size = UDim2.new(colWidth, -gap, 1, 0)
     col.Position = UDim2.new(colWidth * (index - 1), index == 1 and 0 or (gap / 2), 0, 0)
-    col.ScrollBarThickness = 2
+    col.ScrollBarThickness = 4
     col.ScrollBarImageColor3 = Theme.Accent
-    col.ScrollBarImageTransparency = 0.5
+    col.ScrollBarImageTransparency = 0.2
     col.CanvasSize = UDim2.new(0, 0, 0, 0)
     col.AutomaticCanvasSize = Enum.AutomaticSize.Y
     col.ScrollingDirection = Enum.ScrollingDirection.Y
@@ -841,8 +841,9 @@ function Category:AddToggle(config)
         Set = function(_, val) if val ~= state then updateToggle() end end,
         Get = function() return state end,
     }
-    if config.Flag then
-        self._lib._flags[config.Flag] = { type = "Toggle", obj = obj }
+    local flagKey = config.Flag or (config.Text and (self._name .. "_" .. config.Text) or nil)
+    if flagKey then
+        self._lib._flags[flagKey] = { type = "Toggle", obj = obj }
     end
     return obj
 end
@@ -992,11 +993,12 @@ function Category:AddTextBox(config)
         if enterPressed and config.Callback then config.Callback(box.Text) end
     end)
 
-    if config.Flag then
-        self._lib._flags[config.Flag] = {
+    local flagKey = config.Flag or (config.Placeholder and (self._name .. "_" .. config.Placeholder) or nil)
+    if flagKey then
+        self._lib._flags[flagKey] = {
             type = "TextBox",
             obj = {
-                Set = function(_, val) box.Text = val end,
+                Set = function(_, val) box.Text = val; if config.Callback then config.Callback(val) end end,
                 Get = function() return box.Text end,
             },
         }
@@ -1152,11 +1154,13 @@ function Category:AddSlider(config)
             fill.Size = UDim2.new(p, 0, 1, 0)
             knob.Position = UDim2.new(p, -6, 0.5, -6)
             valLabel.Text = tostring(value)
+            if config.Callback then config.Callback(value) end
         end,
         Get = function() return value end,
     }
-    if config.Flag then
-        self._lib._flags[config.Flag] = { type = "Slider", obj = obj }
+    local flagKey = config.Flag or (config.Text and (self._name .. "_" .. config.Text) or nil)
+    if flagKey then
+        self._lib._flags[flagKey] = { type = "Slider", obj = obj }
     end
     return obj
 end
@@ -1356,8 +1360,9 @@ function Category:AddDropdown(config)
             if open then closeDropdown() end
         end,
     }
-    if config.Flag then
-        self._lib._flags[config.Flag] = { type = "Dropdown", obj = obj }
+    local flagKey = config.Flag or (config.Text and (self._name .. "_" .. config.Text) or nil)
+    if flagKey then
+        self._lib._flags[flagKey] = { type = "Dropdown", obj = obj }
     end
     return obj
 end
@@ -1436,9 +1441,9 @@ function Category:AddPlayerList(config)
     optScroll.Position = UDim2.new(0, 0, 0, 42)
     optScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
     optScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    optScroll.ScrollBarThickness = 2
+    optScroll.ScrollBarThickness = 4
     optScroll.ScrollBarImageColor3 = Theme.Accent
-    optScroll.ScrollBarImageTransparency = 0.5
+    optScroll.ScrollBarImageTransparency = 0.2
     optScroll.ScrollingDirection = Enum.ScrollingDirection.Y
     optScroll.Visible = false
     optScroll.Parent = holder
@@ -1794,11 +1799,13 @@ function Category:AddMultiDropdown(config)
             selected = {}
             for _, v in ipairs(list) do selected[v] = true end
             updateHighlights()
+            if config.Callback then config.Callback(getSelectedList()) end
         end,
         Get = function() return getSelectedList() end,
     }
-    if config.Flag then
-        self._lib._flags[config.Flag] = { type = "MultiDropdown", obj = obj }
+    local flagKey = config.Flag or (config.Text and (self._name .. "_" .. config.Text) or nil)
+    if flagKey then
+        self._lib._flags[flagKey] = { type = "MultiDropdown", obj = obj }
     end
     return obj
 end
@@ -2130,8 +2137,9 @@ function Category:AddColorPicker(config)
         end,
         Get = function() return color, alpha end,
     }
-    if config.Flag then
-        self._lib._flags[config.Flag] = { type = "ColorPicker", obj = obj }
+    local flagKey = config.Flag or (config.Text and (self._name .. "_" .. config.Text) or nil)
+    if flagKey then
+        self._lib._flags[flagKey] = { type = "ColorPicker", obj = obj }
     end
     return obj
 end
@@ -2222,11 +2230,13 @@ function Category:AddKeybind(config)
         Set = function(_, key)
             currentKey = key
             keyBtn.Text = (key ~= Enum.KeyCode.Unknown) and key.Name or "None"
+            if config.OnChanged then config.OnChanged(currentKey) end
         end,
         Get = function() return currentKey end,
     }
-    if config.Flag then
-        self._lib._flags[config.Flag] = { type = "Keybind", obj = obj }
+    local flagKey = config.Flag or (config.Text and (self._name .. "_" .. config.Text) or nil)
+    if flagKey then
+        self._lib._flags[flagKey] = { type = "Keybind", obj = obj }
     end
     return obj
 end
@@ -3802,9 +3812,9 @@ function Library:_createStringDumper()
     dumpScroll.Position = UDim2.new(0, 4, 0, scrollTop)
     dumpScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
     dumpScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    dumpScroll.ScrollBarThickness = 2
+    dumpScroll.ScrollBarThickness = 4
     dumpScroll.ScrollBarImageColor3 = Theme.Accent
-    dumpScroll.ScrollBarImageTransparency = 0.5
+    dumpScroll.ScrollBarImageTransparency = 0.2
     dumpScroll.ScrollingDirection = Enum.ScrollingDirection.Y
     dumpScroll.ZIndex = 61
     dumpScroll.Parent = dumpFrame
@@ -4684,9 +4694,9 @@ function Library:_createRemoteSpy()
     spyScroll.Position = UDim2.new(0, 4, 0, scrollTop)
     spyScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
     spyScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    spyScroll.ScrollBarThickness = 2
+    spyScroll.ScrollBarThickness = 4
     spyScroll.ScrollBarImageColor3 = Theme.Accent
-    spyScroll.ScrollBarImageTransparency = 0.5
+    spyScroll.ScrollBarImageTransparency = 0.2
     spyScroll.ScrollingDirection = Enum.ScrollingDirection.Y
     spyScroll.ZIndex = 61
     spyScroll.Parent = spyFrame
@@ -4781,9 +4791,9 @@ function Library:_createRemoteSpy()
     detailScroll.Position = UDim2.new(0, 6, 0, 34)
     detailScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
     detailScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    detailScroll.ScrollBarThickness = 2
+    detailScroll.ScrollBarThickness = 4
     detailScroll.ScrollBarImageColor3 = Theme.Accent
-    detailScroll.ScrollBarImageTransparency = 0.5
+    detailScroll.ScrollBarImageTransparency = 0.2
     detailScroll.ScrollingDirection = Enum.ScrollingDirection.Y
     detailScroll.ZIndex = 62
     detailScroll.Parent = detailPanel
@@ -5604,9 +5614,9 @@ function Library:_createConsole()
     logScroll.Position = UDim2.new(0, 4, 0, scrollTop)
     logScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
     logScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    logScroll.ScrollBarThickness = 2
+    logScroll.ScrollBarThickness = 4
     logScroll.ScrollBarImageColor3 = Theme.Accent
-    logScroll.ScrollBarImageTransparency = 0.5
+    logScroll.ScrollBarImageTransparency = 0.2
     logScroll.ScrollingDirection = Enum.ScrollingDirection.Y
     logScroll.ZIndex = 61
     logScroll.Parent = consoleFrame
@@ -6450,9 +6460,9 @@ function Library:ShowChangelog(config)
     content.Position = UDim2.new(0, 8, 0, 44)
     content.CanvasSize = UDim2.new(0, 0, 0, 0)
     content.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    content.ScrollBarThickness = 2
+    content.ScrollBarThickness = 4
     content.ScrollBarImageColor3 = Theme.Accent
-    content.ScrollBarImageTransparency = 0.5
+    content.ScrollBarImageTransparency = 0.2
     content.ScrollingDirection = Enum.ScrollingDirection.Y
     content.ZIndex = 82
     content.Parent = modal
