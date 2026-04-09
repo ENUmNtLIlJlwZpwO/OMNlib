@@ -108,9 +108,6 @@ local function makeColumn(parent, index, totalCols, gap, padX, padY)
     col.ScrollBarThickness = 4
     col.ScrollBarImageColor3 = Theme.Accent
     col.ScrollBarImageTransparency = 0.2
-    col.TopImage = ""
-    col.MidImage = ""
-    col.BottomImage = ""
     col.CanvasSize = UDim2.new(0, 0, 0, 0)
     col.AutomaticCanvasSize = Enum.AutomaticSize.Y
     col.ScrollingDirection = Enum.ScrollingDirection.Y
@@ -1447,9 +1444,6 @@ function Category:AddPlayerList(config)
     optScroll.ScrollBarThickness = 4
     optScroll.ScrollBarImageColor3 = Theme.Accent
     optScroll.ScrollBarImageTransparency = 0.2
-    optScroll.TopImage = ""
-    optScroll.MidImage = ""
-    optScroll.BottomImage = ""
     optScroll.ScrollingDirection = Enum.ScrollingDirection.Y
     optScroll.Visible = false
     optScroll.Parent = holder
@@ -3821,9 +3815,6 @@ function Library:_createStringDumper()
     dumpScroll.ScrollBarThickness = 4
     dumpScroll.ScrollBarImageColor3 = Theme.Accent
     dumpScroll.ScrollBarImageTransparency = 0.2
-    dumpScroll.TopImage = ""
-    dumpScroll.MidImage = ""
-    dumpScroll.BottomImage = ""
     dumpScroll.ScrollingDirection = Enum.ScrollingDirection.Y
     dumpScroll.ZIndex = 61
     dumpScroll.Parent = dumpFrame
@@ -4706,9 +4697,6 @@ function Library:_createRemoteSpy()
     spyScroll.ScrollBarThickness = 4
     spyScroll.ScrollBarImageColor3 = Theme.Accent
     spyScroll.ScrollBarImageTransparency = 0.2
-    spyScroll.TopImage = ""
-    spyScroll.MidImage = ""
-    spyScroll.BottomImage = ""
     spyScroll.ScrollingDirection = Enum.ScrollingDirection.Y
     spyScroll.ZIndex = 61
     spyScroll.Parent = spyFrame
@@ -4806,9 +4794,6 @@ function Library:_createRemoteSpy()
     detailScroll.ScrollBarThickness = 4
     detailScroll.ScrollBarImageColor3 = Theme.Accent
     detailScroll.ScrollBarImageTransparency = 0.2
-    detailScroll.TopImage = ""
-    detailScroll.MidImage = ""
-    detailScroll.BottomImage = ""
     detailScroll.ScrollingDirection = Enum.ScrollingDirection.Y
     detailScroll.ZIndex = 62
     detailScroll.Parent = detailPanel
@@ -5632,9 +5617,6 @@ function Library:_createConsole()
     logScroll.ScrollBarThickness = 4
     logScroll.ScrollBarImageColor3 = Theme.Accent
     logScroll.ScrollBarImageTransparency = 0.2
-    logScroll.TopImage = ""
-    logScroll.MidImage = ""
-    logScroll.BottomImage = ""
     logScroll.ScrollingDirection = Enum.ScrollingDirection.Y
     logScroll.ZIndex = 61
     logScroll.Parent = consoleFrame
@@ -6481,9 +6463,6 @@ function Library:ShowChangelog(config)
     content.ScrollBarThickness = 4
     content.ScrollBarImageColor3 = Theme.Accent
     content.ScrollBarImageTransparency = 0.2
-    content.TopImage = ""
-    content.MidImage = ""
-    content.BottomImage = ""
     content.ScrollingDirection = Enum.ScrollingDirection.Y
     content.ZIndex = 82
     content.Parent = modal
