@@ -481,15 +481,13 @@ function Library.new(title)
         self.Main.Visible = true
         local mainStroke = self.Main:FindFirstChildOfClass("UIStroke")
         if mainStroke then
-            -- Keep the main stroke subtle during boot to avoid a persistent accent line
-            mainStroke.Color = Theme.Border
-            mainStroke.Transparency = Theme.BorderTransp
+            mainStroke.Color = Theme.Accent
+            mainStroke.Transparency = 0
         end
         tween(self.Main, {Size = UDim2.new(0, W, 0, H)}, 0.4)
         task.wait(0.45)
         if mainStroke then
-            -- Ensure stroke remains subtle after the open animation
-            tween(mainStroke, {Color = Theme.Border, Transparency = Theme.BorderTransp}, 0.2)
+            tween(mainStroke, {Color = Theme.Border, Transparency = Theme.BorderTransp}, 0.5)
         end
         -- Show watermark after boot
         self._bootDone = true
