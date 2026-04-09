@@ -15,6 +15,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LogService = game:GetService("LogService")
 local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
 
 -- ═══════════════════════════════════════════════════
 --  THEME
@@ -467,6 +468,8 @@ function Library.new(title)
     self._tabScroll = tabScroll
     self._contentArea = contentArea
     self._tabOrder = 0
+    self._flags = {}
+    self._configFolder = "GlassUI_Configs"
 
     -- Boot sequence + open animation
     self._bootDone = false
@@ -834,10 +837,14 @@ function Category:AddToggle(config)
     clickBtn.Parent = holder
     clickBtn.MouseButton1Click:Connect(updateToggle)
 
-    return {
+    local obj = {
         Set = function(_, val) if val ~= state then updateToggle() end end,
         Get = function() return state end,
     }
+    if config.Flag then
+        self._lib._flags[config.Flag] = { type = "Toggle", obj = obj }
+    end
+    return obj
 end
 
 -- ═══════════════════════════════════════════════════
@@ -984,6 +991,17 @@ function Category:AddTextBox(config)
         if stroke then tween(stroke, {Color = Theme.Border, Transparency = Theme.BorderTransp}, 0.2) end
         if enterPressed and config.Callback then config.Callback(box.Text) end
     end)
+
+    if config.Flag then
+        self._lib._flags[config.Flag] = {
+            type = "TextBox",
+            obj = {
+                Set = function(_, val) box.Text = val end,
+                Get = function() return box.Text end,
+            },
+        }
+    end
+
     return box
 end
 
@@ -1127,7 +1145,7 @@ function Category:AddSlider(config)
         update(mouse.X)
     end)
 
-    return {
+    local obj = {
         Set = function(_, val)
             value = math.clamp(val, min, max)
             local p = (value - min) / (max - min)
@@ -1137,6 +1155,10 @@ function Category:AddSlider(config)
         end,
         Get = function() return value end,
     }
+    if config.Flag then
+        self._lib._flags[config.Flag] = { type = "Slider", obj = obj }
+    end
+    return obj
 end
 
 -- ═══════════════════════════════════════════════════
@@ -1257,38 +1279,46 @@ function Category:AddDropdown(config)
         closeDropdown()
     end
 
-    for i, opt in ipairs(options) do
-        local optBtn = Instance.new("TextButton")
-        optBtn.Name = "Opt_" .. opt
-        optBtn.Text = "  " .. opt
-        optBtn.Font = Theme.Font
-        optBtn.TextSize = 12
-        optBtn.TextXAlignment = Enum.TextXAlignment.Left
-        optBtn.TextColor3 = Theme.Text
-        optBtn.BackgroundColor3 = (opt == selected) and Theme.Accent or Theme.GlassHover
-        optBtn.BackgroundTransparency = (opt == selected) and 0.3 or 0.5
-        optBtn.Size = UDim2.new(1, 0, 0, 24)
-        optBtn.AutoButtonColor = false
-        optBtn.LayoutOrder = i
-        optBtn.Parent = optContainer
-        applySmallCorner(optBtn)
+    local function buildOptions()
+        for _, data in ipairs(optButtons) do
+            data.btn:Destroy()
+        end
+        optButtons = {}
+        for i, opt in ipairs(options) do
+            local optBtn = Instance.new("TextButton")
+            optBtn.Name = "Opt_" .. opt
+            optBtn.Text = "  " .. opt
+            optBtn.Font = Theme.Font
+            optBtn.TextSize = 12
+            optBtn.TextXAlignment = Enum.TextXAlignment.Left
+            optBtn.TextColor3 = Theme.Text
+            optBtn.BackgroundColor3 = (opt == selected) and Theme.Accent or Theme.GlassHover
+            optBtn.BackgroundTransparency = (opt == selected) and 0.3 or 0.5
+            optBtn.Size = UDim2.new(1, 0, 0, 24)
+            optBtn.AutoButtonColor = false
+            optBtn.LayoutOrder = i
+            optBtn.Parent = optContainer
+            applySmallCorner(optBtn)
 
-        table.insert(optButtons, {btn = optBtn, opt = opt})
+            table.insert(optButtons, {btn = optBtn, opt = opt})
 
-        optBtn.MouseEnter:Connect(function()
-            if opt ~= selected then
-                tween(optBtn, {BackgroundTransparency = 0.2}, 0.15)
-            end
-        end)
-        optBtn.MouseLeave:Connect(function()
-            if opt ~= selected then
-                tween(optBtn, {BackgroundTransparency = 0.5}, 0.15)
-            end
-        end)
-        optBtn.MouseButton1Click:Connect(function()
-            selectOption(opt)
-        end)
+            optBtn.MouseEnter:Connect(function()
+                if opt ~= selected then
+                    tween(optBtn, {BackgroundTransparency = 0.2}, 0.15)
+                end
+            end)
+            optBtn.MouseLeave:Connect(function()
+                if opt ~= selected then
+                    tween(optBtn, {BackgroundTransparency = 0.5}, 0.15)
+                end
+            end)
+            optBtn.MouseButton1Click:Connect(function()
+                selectOption(opt)
+            end)
+        end
     end
+
+    buildOptions()
 
     local toggleBtn = Instance.new("TextButton")
     toggleBtn.Text = ""
@@ -1309,10 +1339,27 @@ function Category:AddDropdown(config)
         end
     end)
 
-    return {
+    local obj = {
         Set = function(_, val) selectOption(val) end,
         Get = function() return selected end,
+        SetOptions = function(_, newOptions)
+            options = newOptions
+            buildOptions()
+            local found = false
+            for _, opt in ipairs(options) do
+                if opt == selected then found = true; break end
+            end
+            if not found then
+                selected = newOptions[1] or ""
+                selectedLabel.Text = selected
+            end
+            if open then closeDropdown() end
+        end,
     }
+    if config.Flag then
+        self._lib._flags[config.Flag] = { type = "Dropdown", obj = obj }
+    end
+    return obj
 end
 
 -- ═══════════════════════════════════════════════════
@@ -1742,7 +1789,7 @@ function Category:AddMultiDropdown(config)
         end
     end)
 
-    return {
+    local obj = {
         Set = function(_, list)
             selected = {}
             for _, v in ipairs(list) do selected[v] = true end
@@ -1750,6 +1797,10 @@ function Category:AddMultiDropdown(config)
         end,
         Get = function() return getSelectedList() end,
     }
+    if config.Flag then
+        self._lib._flags[config.Flag] = { type = "MultiDropdown", obj = obj }
+    end
+    return obj
 end
 
 -- ═══════════════════════════════════════════════════
@@ -2069,7 +2120,7 @@ function Category:AddColorPicker(config)
         end
     end)
 
-    return {
+    local obj = {
         Set = function(_, c3, a)
             color = c3
             h, s, v = Color3.toHSV(c3)
@@ -2079,6 +2130,10 @@ function Category:AddColorPicker(config)
         end,
         Get = function() return color, alpha end,
     }
+    if config.Flag then
+        self._lib._flags[config.Flag] = { type = "ColorPicker", obj = obj }
+    end
+    return obj
 end
 
 -- ═══════════════════════════════════════════════════
@@ -2163,13 +2218,17 @@ function Category:AddKeybind(config)
         end
     end)
 
-    return {
+    local obj = {
         Set = function(_, key)
             currentKey = key
             keyBtn.Text = (key ~= Enum.KeyCode.Unknown) and key.Name or "None"
         end,
         Get = function() return currentKey end,
     }
+    if config.Flag then
+        self._lib._flags[config.Flag] = { type = "Keybind", obj = obj }
+    end
+    return obj
 end
 
 -- ═══════════════════════════════════════════════════
@@ -2834,6 +2893,172 @@ function Library:_refreshTextColor(c)
 end
 
 -- ═══════════════════════════════════════════════════
+--  CONFIG SYSTEM
+-- ═══════════════════════════════════════════════════
+function Library:_serializeFlags()
+    local data = {}
+    for flag, info in pairs(self._flags) do
+        local t = info.type
+        local obj = info.obj
+        local ok, result = pcall(function()
+            if t == "Toggle" then
+                return { type = t, value = obj.Get() }
+            elseif t == "Slider" then
+                return { type = t, value = obj.Get() }
+            elseif t == "Dropdown" then
+                return { type = t, value = obj.Get() }
+            elseif t == "MultiDropdown" then
+                return { type = t, value = obj.Get() }
+            elseif t == "ColorPicker" then
+                local c, a = obj.Get()
+                return { type = t, value = { c.R, c.G, c.B }, alpha = a }
+            elseif t == "Keybind" then
+                local key = obj.Get()
+                return { type = t, value = key.Name }
+            elseif t == "TextBox" then
+                return { type = t, value = obj.Get() }
+            end
+        end)
+        if ok and result then
+            data[flag] = result
+        end
+    end
+    return data
+end
+
+function Library:_deserializeFlags(data)
+    for flag, info in pairs(data) do
+        local registered = self._flags[flag]
+        if registered then
+            pcall(function()
+                local t = info.type
+                local obj = registered.obj
+                if t == "Toggle" then
+                    obj:Set(info.value)
+                elseif t == "Slider" then
+                    obj:Set(info.value)
+                elseif t == "Dropdown" then
+                    obj:Set(info.value)
+                elseif t == "MultiDropdown" then
+                    obj:Set(info.value)
+                elseif t == "ColorPicker" then
+                    local v = info.value
+                    obj:Set(Color3.new(v[1], v[2], v[3]), info.alpha)
+                elseif t == "Keybind" then
+                    local key = Enum.KeyCode[info.value]
+                    if key then obj:Set(key) end
+                elseif t == "TextBox" then
+                    obj:Set(info.value)
+                end
+            end)
+        end
+    end
+end
+
+function Library:SaveConfig(name)
+    if type(writefile) ~= "function" then
+        if self.Notify then self:Notify({ Text = "Config save unavailable: writefile missing", Duration = 4 }) end
+        return false
+    end
+    if type(isfolder) == "function" and not isfolder(self._configFolder) then
+        if type(makefolder) == "function" then makefolder(self._configFolder) end
+    end
+    local data = self:_serializeFlags()
+    local ok, json = pcall(function() return HttpService:JSONEncode(data) end)
+    if not ok then
+        if self.Notify then self:Notify({ Text = "Config save failed: encode error", Duration = 4 }) end
+        return false
+    end
+    writefile(self._configFolder .. "/" .. name .. ".json", json)
+    if self.Notify then self:Notify({ Text = "Config saved: " .. name, Duration = 3 }) end
+    return true
+end
+
+function Library:LoadConfig(name)
+    if type(readfile) ~= "function" or type(isfile) ~= "function" then
+        if self.Notify then self:Notify({ Text = "Config load unavailable: file system missing", Duration = 4 }) end
+        return false
+    end
+    local path = self._configFolder .. "/" .. name .. ".json"
+    if not isfile(path) then
+        if self.Notify then self:Notify({ Text = "Config not found: " .. name, Duration = 3 }) end
+        return false
+    end
+    local ok, data = pcall(function()
+        return HttpService:JSONDecode(readfile(path))
+    end)
+    if not ok or type(data) ~= "table" then
+        if self.Notify then self:Notify({ Text = "Failed to parse config: " .. name, Duration = 4 }) end
+        return false
+    end
+    self:_deserializeFlags(data)
+    if self.Notify then self:Notify({ Text = "Config loaded: " .. name, Duration = 3 }) end
+    return true
+end
+
+function Library:DeleteConfig(name)
+    if type(delfile) ~= "function" then
+        if self.Notify then self:Notify({ Text = "Config delete unavailable", Duration = 4 }) end
+        return false
+    end
+    local path = self._configFolder .. "/" .. name .. ".json"
+    if type(isfile) == "function" and isfile(path) then
+        delfile(path)
+        if self.Notify then self:Notify({ Text = "Config deleted: " .. name, Duration = 3 }) end
+        return true
+    end
+    return false
+end
+
+function Library:GetConfigs()
+    if type(listfiles) ~= "function" then return {} end
+    if type(isfolder) == "function" and not isfolder(self._configFolder) then return {} end
+    local ok, files = pcall(listfiles, self._configFolder)
+    if not ok then return {} end
+    local configs = {}
+    for _, file in ipairs(files) do
+        local name = string.match(file, "([^/\\]+)%.json$")
+        if name then
+            table.insert(configs, name)
+        end
+    end
+    return configs
+end
+
+function Library:ExportConfig()
+    local data = self:_serializeFlags()
+    local ok, json = pcall(function() return HttpService:JSONEncode(data) end)
+    if not ok then
+        if self.Notify then self:Notify({ Text = "Export failed: encode error", Duration = 4 }) end
+        return
+    end
+    if setclipboard then
+        setclipboard(json)
+    elseif toclipboard then
+        toclipboard(json)
+    end
+    if self.Notify then self:Notify({ Text = "Config exported to clipboard", Duration = 3 }) end
+    return json
+end
+
+function Library:ImportConfig(json)
+    if type(json) ~= "string" or json == "" then
+        if self.Notify then self:Notify({ Text = "No data to import", Duration = 3 }) end
+        return false
+    end
+    local ok, data = pcall(function()
+        return HttpService:JSONDecode(json)
+    end)
+    if not ok or type(data) ~= "table" then
+        if self.Notify then self:Notify({ Text = "Failed to parse imported config", Duration = 4 }) end
+        return false
+    end
+    self:_deserializeFlags(data)
+    if self.Notify then self:Notify({ Text = "Config imported successfully", Duration = 3 }) end
+    return true
+end
+
+-- ═══════════════════════════════════════════════════
 --  SETTINGS CATEGORY (icon-only, far right)
 -- ═══════════════════════════════════════════════════
 function Library:AddSettings()
@@ -2990,9 +3215,9 @@ function Library:AddSettings()
         end,
     })
 
-    -- Col 3 -- Watermark GroupBox
+    -- Col 1 -- Watermark GroupBox
     local WmGroup = Settings:AddGroupBox({
-        Column = 3,
+        Column = 1,
         Text = "Watermark",
     })
 
@@ -3018,6 +3243,97 @@ function Library:AddSettings()
         Callback = function(selected)
             libSelf._wmContent = selected
             libSelf:_updateWatermarkText()
+        end,
+    })
+
+    -- Col 3 -- Config GroupBox
+    local ConfigGroup = Settings:AddGroupBox({
+        Column = 3,
+        Text = "Configs",
+    })
+
+    local configNameBox = ConfigGroup:AddTextBox({
+        Placeholder = "Config name...",
+    })
+
+    local configDropdown = ConfigGroup:AddDropdown({
+        Text = "Saved",
+        Options = libSelf:GetConfigs(),
+        Default = "",
+    })
+
+    ConfigGroup:AddButton({
+        Text = "Save Config",
+        Callback = function()
+            local name = configNameBox.Text
+            if name == "" then
+                local sel = configDropdown.Get()
+                if sel and sel ~= "" then name = sel end
+            end
+            if name == "" then
+                if libSelf.Notify then libSelf:Notify({ Text = "Enter a config name", Duration = 3 }) end
+                return
+            end
+            libSelf:SaveConfig(name)
+            configDropdown:SetOptions(libSelf:GetConfigs())
+            configDropdown:Set(name)
+        end,
+    })
+
+    ConfigGroup:AddButton({
+        Text = "Load Config",
+        Callback = function()
+            local sel = configDropdown.Get()
+            if sel and sel ~= "" then
+                libSelf:LoadConfig(sel)
+            else
+                if libSelf.Notify then libSelf:Notify({ Text = "Select a config to load", Duration = 3 }) end
+            end
+        end,
+    })
+
+    ConfigGroup:AddButton({
+        Text = "Delete Config",
+        Callback = function()
+            local sel = configDropdown.Get()
+            if sel and sel ~= "" then
+                libSelf:DeleteConfig(sel)
+                configDropdown:SetOptions(libSelf:GetConfigs())
+            end
+        end,
+    })
+
+    ConfigGroup:AddButton({
+        Text = "Refresh List",
+        Callback = function()
+            configDropdown:SetOptions(libSelf:GetConfigs())
+            if libSelf.Notify then libSelf:Notify({ Text = "Config list refreshed", Duration = 2 }) end
+        end,
+    })
+
+    ConfigGroup:AddSeparator()
+
+    ConfigGroup:AddButton({
+        Text = "Export to Clipboard",
+        Callback = function()
+            libSelf:ExportConfig()
+        end,
+    })
+
+    ConfigGroup:AddButton({
+        Text = "Import from Clipboard",
+        Callback = function()
+            local text
+            if type(readclipboard) == "function" then
+                text = readclipboard()
+            elseif type(getclipboard) == "function" then
+                text = getclipboard()
+            end
+            if text and text ~= "" then
+                libSelf:ImportConfig(text)
+            else
+                if libSelf.Notify then libSelf:Notify({ Text = "Clipboard read unavailable or empty", Duration = 4 }) end
+            end
         end,
     })
 
