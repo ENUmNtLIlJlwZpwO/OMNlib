@@ -3133,7 +3133,7 @@ function Library:AddSettings()
 
     ThemeGroup:AddDropdown({
         Text = "Preset",
-        Options = {"Dark", "Midnight", "Ocean", "Forest", "Cherry", "Amethyst", "Mocha", "Arctic", "Crimson", "Neon", "0mniscient"},
+        Options = {"Dark", "Midnight", "Ocean", "Forest", "Cherry", "Amethyst", "Mocha", "Arctic", "Crimson", "Neon", "Gold"},
         Default = "Dark",
         Callback = function(opt)
             local themes = {
@@ -3147,7 +3147,7 @@ function Library:AddSettings()
                 Arctic    = {bg={18,24,30},  glass={28,36,44},  accent={100,180,220}, text={220,235,245}, subtext={110,140,160}, border={50,65,78},  tabbg={22,28,36},  tabact={55,75,95},   tabinact={32,40,50}},
                 Crimson   = {bg={24,10,10},  glass={38,18,18},  accent={200,40,40},   text={240,210,210}, subtext={140,90,90},   border={70,35,35},  tabbg={28,14,14},  tabact={80,35,35},   tabinact={42,22,22}},
                 Neon      = {bg={8,8,16},    glass={16,16,28},  accent={0,255,140},   text={210,240,220}, subtext={100,140,110}, border={30,40,50},  tabbg={10,10,20},  tabact={25,50,45},   tabinact={18,18,32}},
-                0mniscient = {bg={30,22,8},   glass={45,38,20},  accent={218,165,32},  text={255,255,200}, subtext={184,134,11},  border={184,134,11}, tabbg={35,28,10}, tabact={80,65,30},   tabinact={45,38,20}},
+                Gold      = {bg={30,22,8},   glass={45,38,20},  accent={218,165,32},  text={255,255,200}, subtext={184,134,11},  border={184,134,11}, tabbg={35,28,10}, tabact={80,65,30},   tabinact={45,38,20}},
             }
             local t = themes[opt]
             if t then
