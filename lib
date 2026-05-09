@@ -20,59 +20,39 @@ local HttpService = game:GetService("HttpService")
 -- ═══════════════════════════════════════════════════
 --  THEME
 -- ═══════════════════════════════════════════════════
-local ThemePresets = {
-    Default = {
-        Background      = Color3.fromRGB(20, 20, 22),
-        Glass           = Color3.fromRGB(32, 32, 36),
-        GlassHover      = Color3.fromRGB(48, 48, 54),
-        Accent          = Color3.fromRGB(155, 155, 165),
-        AccentHover     = Color3.fromRGB(180, 180, 190),
-        Text            = Color3.fromRGB(220, 220, 225),
-        SubText         = Color3.fromRGB(120, 120, 130),
-        Border          = Color3.fromRGB(55, 55, 60),
-        TabBg           = Color3.fromRGB(25, 25, 28),
-        TabActive       = Color3.fromRGB(70, 70, 78),
-        TabInactive     = Color3.fromRGB(36, 36, 40),
-        ToggleOn        = Color3.fromRGB(175, 175, 185),
-        ToggleOff       = Color3.fromRGB(50, 50, 55),
-        Shadow          = Color3.fromRGB(0, 0, 0),
-    },
-    Gold = {
-        Background      = Color3.fromRGB(30, 22, 8),
-        Glass           = Color3.fromRGB(45, 38, 20),
-        GlassHover      = Color3.fromRGB(60, 50, 25),
-        Accent          = Color3.fromRGB(218, 165, 32),
-        AccentHover     = Color3.fromRGB(255, 215, 0),
-        Text            = Color3.fromRGB(255, 255, 200),
-        SubText         = Color3.fromRGB(184, 134, 11),
-        Border          = Color3.fromRGB(184, 134, 11),
-        TabBg           = Color3.fromRGB(35, 28, 10),
-        TabActive       = Color3.fromRGB(80, 65, 30),
-        TabInactive     = Color3.fromRGB(45, 38, 20),
-        ToggleOn        = Color3.fromRGB(218, 165, 32),
-        ToggleOff       = Color3.fromRGB(60, 50, 25),
-        Shadow          = Color3.fromRGB(0, 0, 0),
-    },
+local Theme = {
+    Background      = Color3.fromRGB(20, 20, 22),
+    Glass           = Color3.fromRGB(32, 32, 36),
+    GlassHover      = Color3.fromRGB(48, 48, 54),
+    Accent          = Color3.fromRGB(155, 155, 165),
+    AccentHover     = Color3.fromRGB(180, 180, 190),
+    Text            = Color3.fromRGB(220, 220, 225),
+    SubText         = Color3.fromRGB(120, 120, 130),
+    Border          = Color3.fromRGB(55, 55, 60),
+    TabBg           = Color3.fromRGB(25, 25, 28),
+    TabActive       = Color3.fromRGB(70, 70, 78),
+    TabInactive     = Color3.fromRGB(36, 36, 40),
+    ToggleOn        = Color3.fromRGB(175, 175, 185),
+    ToggleOff       = Color3.fromRGB(50, 50, 55),
+    Shadow          = Color3.fromRGB(0, 0, 0),
+
+    Font            = Enum.Font.GothamMedium,
+    FontBold        = Enum.Font.GothamBold,
+    CornerRadius    = UDim.new(0, 8),
+    CornerSmall     = UDim.new(0, 6),
+    Transparency    = 0.25,
+    BorderTransp    = 0.6,
+    AnimSpeed       = 0.25,
+
+    WindowWidth     = 620,
+    WindowHeight    = 340,
+    TitleBarH       = 38,
+    TabBarH         = 34,
+    Columns         = 3,
+    ColGap          = 4,
+    ColPadX         = 5,
+    ColPadY         = 5,
 }
-
-local Theme = ThemePresets.Default
-
--- Shared properties for all themes
-Theme.Font            = Enum.Font.GothamMedium
-Theme.FontBold        = Enum.Font.GothamBold
-Theme.CornerRadius    = UDim.new(0, 8)
-Theme.CornerSmall     = UDim.new(0, 6)
-Theme.Transparency    = 0.25
-Theme.BorderTransp    = 0.6
-Theme.AnimSpeed       = 0.25
-Theme.WindowWidth     = 620
-Theme.WindowHeight    = 340
-Theme.TitleBarH       = 38
-Theme.TabBarH         = 34
-Theme.Columns         = 3
-Theme.ColGap          = 4
-Theme.ColPadX         = 5
-Theme.ColPadY         = 5
 
 -- ═══════════════════════════════════════════════════
 --  HELPERS
