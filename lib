@@ -6616,6 +6616,626 @@ function Library:ShowChangelog(config)
 end
 
 -- ═══════════════════════════════════════════════════
+--  PLAYER ESP (integrated into library)
+-- ═══════════════════════════════════════════════════
+function Library:AddPlayerESP()
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local Camera = workspace.CurrentCamera
+    local LocalPlayer = Players.LocalPlayer
+
+    local PlayerESP = self:AddCategory("PlayerESP", "rbxassetid://18854794412")
+
+    local THEME = {
+        Glass = Color3.fromRGB(32, 32, 36),
+        Surface = Color3.fromRGB(20, 20, 22),
+        Border = Color3.fromRGB(55, 55, 60),
+        Text = Color3.fromRGB(220, 220, 225),
+        SubText = Color3.fromRGB(155, 155, 165),
+        Font = Enum.Font.GothamMedium,
+        FontBold = Enum.Font.GothamBold,
+    }
+
+    local HP_LOW = Color3.fromRGB(255, 80, 80)
+    local HP_MID = Color3.fromRGB(230, 200, 60)
+    local HP_HIGH = Color3.fromRGB(80, 220, 110)
+
+    local ESP = {
+        Box = false,
+        Name = false,
+        Distance = false,
+        Health = false,
+        Chams = false,
+        OffScreenArrow = false,
+        Tracers = false,
+        TeamCheck = false,
+        MaxDistance = 1000,
+        TextSize = 12,
+        StrokeThickness = 2,
+        BoxStyle = "Full",
+        BoxFiller = false,
+        AccentColor = Color3.fromRGB(150, 200, 255),
+        TextColor = Color3.fromRGB(255, 255, 255),
+    }
+
+    local function getGuiParent()
+        local hui = (typeof(gethui) == "function") and gethui() or nil
+        if hui then return hui end
+        local ok, cg = pcall(function() return game:GetService("CoreGui") end)
+        if ok and cg then return cg end
+        return LocalPlayer:WaitForChild("PlayerGui")
+    end
+
+    local Gui = Instance.new("ScreenGui")
+    Gui.Name = "GlassESP_" .. tostring(math.random(100000, 999999))
+    Gui.ResetOnSpawn = false
+    Gui.IgnoreGuiInset = true
+    Gui.DisplayOrder = 1
+    Gui.Parent = getGuiParent()
+
+    local Elements = {}
+
+    local function corner(parent, r)
+        local c = Instance.new("UICorner")
+        c.CornerRadius = UDim.new(0, r or 6)
+        c.Parent = parent
+        return c
+    end
+
+    local function stroke(parent, color, transp, thick)
+        local s = Instance.new("UIStroke")
+        s.Color = color or THEME.Border
+        s.Transparency = transp or 0.5
+        s.Thickness = thick or 1
+        s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        s.Parent = parent
+        return s
+    end
+
+    local function pad(parent, l, r, t, b)
+        local p = Instance.new("UIPadding")
+        p.PaddingLeft = UDim.new(0, l or 0)
+        p.PaddingRight = UDim.new(0, r or 0)
+        p.PaddingTop = UDim.new(0, t or 0)
+        p.PaddingBottom = UDim.new(0, b or 0)
+        p.Parent = parent
+        return p
+    end
+
+    local function hpColor(hp)
+        if hp > 0.5 then
+            return HP_MID:Lerp(HP_HIGH, (hp - 0.5) * 2)
+        else
+            return HP_LOW:Lerp(HP_MID, hp * 2)
+        end
+    end
+
+    local function build(plr)
+        local container = Instance.new("Frame")
+        container.Name = "ESP_" .. plr.Name
+        container.AnchorPoint = Vector2.new(0, 0)
+        container.BackgroundTransparency = 1
+        container.BorderSizePixel = 0
+        container.Visible = false
+        container.Parent = Gui
+
+        local shadow = Instance.new("ImageLabel")
+        shadow.Name = "Shadow"
+        shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+        shadow.Position = UDim2.new(0.5, 0, 0.5, 0)
+        shadow.Size = UDim2.new(1, 22, 1, 22)
+        shadow.BackgroundTransparency = 1
+        shadow.Image = "rbxassetid://5554236805"
+        shadow.ImageColor3 = Color3.new(0, 0, 0)
+        shadow.ImageTransparency = 0.7
+        shadow.ScaleType = Enum.ScaleType.Slice
+        shadow.SliceCenter = Rect.new(23, 23, 277, 277)
+        shadow.ZIndex = 0
+        shadow.Parent = container
+
+        local box = Instance.new("Frame")
+        box.Name = "Box"
+        box.Size = UDim2.new(1, 0, 1, 0)
+        box.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        box.BackgroundTransparency = 0.82
+        box.BorderSizePixel = 0
+        box.ZIndex = 1
+        box.Parent = container
+        corner(box, 8)
+
+        local boxFillGrad = Instance.new("UIGradient")
+        boxFillGrad.Color = ColorSequence.new(Color3.fromRGB(70, 75, 88), Color3.fromRGB(18, 20, 26))
+        boxFillGrad.Rotation = 90
+        boxFillGrad.Parent = box
+
+        local boxStroke = stroke(box, ESP.AccentColor, 0, ESP.StrokeThickness)
+
+        local boxStrokeGrad = Instance.new("UIGradient")
+        boxStrokeGrad.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0.05),
+            NumberSequenceKeypoint.new(1, 0.45),
+        })
+        boxStrokeGrad.Rotation = 90
+        boxStrokeGrad.Parent = boxStroke
+
+        local boxFill = Instance.new("Frame")
+        boxFill.Name = "BoxFill"
+        boxFill.Size = UDim2.new(1, 0, 1, 0)
+        boxFill.BackgroundColor3 = ESP.AccentColor
+        boxFill.BackgroundTransparency = 0.9
+        boxFill.BorderSizePixel = 0
+        boxFill.ZIndex = 0
+        boxFill.Visible = false
+        boxFill.Parent = container
+
+        local corners = {}
+        for i = 1, 8 do
+            local line = Instance.new("Frame")
+            line.Name = "CornerLine" .. i
+            line.BackgroundColor3 = ESP.AccentColor
+            line.BorderSizePixel = 0
+            line.Visible = false
+            line.ZIndex = 1
+            line.Parent = container
+            table.insert(corners, line)
+        end
+
+        local nameTag = Instance.new("Frame")
+        nameTag.Name = "NameTag"
+        nameTag.AnchorPoint = Vector2.new(0.5, 1)
+        nameTag.Position = UDim2.new(0.5, 0, 0, -6)
+        nameTag.AutomaticSize = Enum.AutomaticSize.X
+        nameTag.Size = UDim2.new(0, 0, 0, 18)
+        nameTag.BackgroundColor3 = THEME.Surface
+        nameTag.BackgroundTransparency = 0.6
+        nameTag.BorderSizePixel = 0
+        nameTag.ZIndex = 2
+        nameTag.Parent = container
+        corner(nameTag, 5)
+        local nameTagStroke = stroke(nameTag, ESP.AccentColor, 0.2, 1)
+        pad(nameTag, 7, 7)
+
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Name = "Label"
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Font = THEME.FontBold
+        nameLabel.TextSize = ESP.TextSize
+        nameLabel.TextColor3 = ESP.TextColor
+        nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+        nameLabel.TextStrokeTransparency = 0
+        nameLabel.AutomaticSize = Enum.AutomaticSize.X
+        nameLabel.Size = UDim2.new(0, 0, 1, 0)
+        nameLabel.Text = plr.Name
+        nameLabel.Parent = nameTag
+
+        local distTag = Instance.new("Frame")
+        distTag.Name = "DistTag"
+        distTag.AnchorPoint = Vector2.new(0.5, 0)
+        distTag.Position = UDim2.new(0.5, 0, 1, 6)
+        distTag.AutomaticSize = Enum.AutomaticSize.X
+        distTag.Size = UDim2.new(0, 0, 0, 16)
+        distTag.BackgroundColor3 = THEME.Surface
+        distTag.BackgroundTransparency = 0.6
+        distTag.BorderSizePixel = 0
+        distTag.ZIndex = 2
+        distTag.Parent = container
+        corner(distTag, 4)
+        local distTagStroke = stroke(distTag, ESP.AccentColor, 0.2, 1)
+        pad(distTag, 6, 6)
+
+        local distLabel = Instance.new("TextLabel")
+        distLabel.Name = "Label"
+        distLabel.BackgroundTransparency = 1
+        distLabel.Font = THEME.FontBold
+        distLabel.TextSize = ESP.TextSize - 2
+        distLabel.TextColor3 = ESP.TextColor
+        distLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+        distLabel.TextStrokeTransparency = 0
+        distLabel.AutomaticSize = Enum.AutomaticSize.X
+        distLabel.Size = UDim2.new(0, 0, 1, 0)
+        distLabel.Text = "0m"
+        distLabel.Parent = distTag
+
+        local hpBg = Instance.new("Frame")
+        hpBg.Name = "HpBg"
+        hpBg.AnchorPoint = Vector2.new(1, 0)
+        hpBg.Position = UDim2.new(0, -6, 0, 0)
+        hpBg.Size = UDim2.new(0, 4, 1, 0)
+        hpBg.BackgroundColor3 = THEME.Surface
+        hpBg.BackgroundTransparency = 0.35
+        hpBg.BorderSizePixel = 0
+        hpBg.ZIndex = 2
+        hpBg.Parent = container
+        corner(hpBg, 99)
+        stroke(hpBg, THEME.Border, 0.65, 1)
+
+        local hpFill = Instance.new("Frame")
+        hpFill.Name = "HpFill"
+        hpFill.AnchorPoint = Vector2.new(0, 1)
+        hpFill.Position = UDim2.new(0, 0, 1, 0)
+        hpFill.Size = UDim2.new(1, 0, 1, 0)
+        hpFill.BackgroundColor3 = HP_HIGH
+        hpFill.BorderSizePixel = 0
+        hpFill.Parent = hpBg
+        corner(hpFill, 99)
+
+        local hpText = Instance.new("TextLabel")
+        hpText.Name = "HpText"
+        hpText.AnchorPoint = Vector2.new(1, 0.5)
+        hpText.Position = UDim2.new(0, -3, 0.5, 0)
+        hpText.Size = UDim2.new(0, 26, 0, 12)
+        hpText.BackgroundTransparency = 1
+        hpText.Font = THEME.FontBold
+        hpText.TextSize = 10
+        hpText.TextColor3 = ESP.TextColor
+        hpText.TextStrokeColor3 = Color3.new(0, 0, 0)
+        hpText.TextStrokeTransparency = 0
+        hpText.TextXAlignment = Enum.TextXAlignment.Right
+        hpText.Text = "100"
+        hpText.Parent = hpBg
+
+        local arrow = Instance.new("Frame")
+        arrow.Name = "OffArrow_" .. plr.Name
+        arrow.AnchorPoint = Vector2.new(0.5, 0.5)
+        arrow.Size = UDim2.new(0, 28, 0, 28)
+        arrow.BackgroundColor3 = THEME.Surface
+        arrow.BackgroundTransparency = 0.18
+        arrow.BorderSizePixel = 0
+        arrow.Visible = false
+        arrow.Parent = Gui
+        corner(arrow, 14)
+        local arrowStroke = stroke(arrow, ESP.AccentColor, 0.2, 1)
+
+        local arrowLbl = Instance.new("TextLabel")
+        arrowLbl.Name = "ChevronIcon"
+        arrowLbl.AnchorPoint = Vector2.new(0.5, 0.5)
+        arrowLbl.Position = UDim2.new(0.5, 0, 0.5, 0)
+        arrowLbl.Size = UDim2.new(1, 0, 1, 0)
+        arrowLbl.BackgroundTransparency = 1
+        arrowLbl.Font = THEME.FontBold
+        arrowLbl.TextSize = 18
+        arrowLbl.TextColor3 = ESP.AccentColor
+        arrowLbl.Text = "‣"
+        arrowLbl.Parent = arrow
+
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "Chams_" .. plr.Name
+        highlight.Enabled = false
+        highlight.FillTransparency = 0.65
+        highlight.OutlineTransparency = 0.1
+        highlight.FillColor = ESP.AccentColor
+        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.Parent = Gui
+
+        local tracer = Instance.new("Frame")
+        tracer.Name = "Tracer_" .. plr.Name
+        tracer.BackgroundColor3 = ESP.AccentColor
+        tracer.BorderSizePixel = 0
+        tracer.Visible = false
+        tracer.ZIndex = 0
+        tracer.Parent = Gui
+
+        Elements[plr] = {
+            Container = container,
+            Shadow = shadow,
+            Box = box,
+            BoxStroke = boxStroke,
+            BoxFill = boxFill,
+            Corners = corners,
+            NameTag = nameTag,
+            NameLabel = nameLabel,
+            NameTagStroke = nameTagStroke,
+            DistTag = distTag,
+            DistLabel = distLabel,
+            DistTagStroke = distTagStroke,
+            HpBg = hpBg,
+            HpFill = hpFill,
+            HpText = hpText,
+            Arrow = arrow,
+            ArrowStroke = arrowStroke,
+            ArrowLbl = arrowLbl,
+            Highlight = highlight,
+            Tracer = tracer,
+        }
+    end
+
+    local function destroy(plr)
+        local e = Elements[plr]
+        if not e then return end
+        if e.Container then e.Container:Destroy() end
+        if e.Arrow then e.Arrow:Destroy() end
+        if e.Highlight then e.Highlight:Destroy() end
+        Elements[plr] = nil
+    end
+
+    local function hide(plr)
+        local e = Elements[plr]
+        if not e then return end
+        e.Container.Visible = false
+        e.Arrow.Visible = false
+        e.Highlight.Enabled = false
+        e.Tracer.Visible = false
+    end
+
+    local function drawLine(line, from, to, thickness, color)
+        local diff = (to - from).Magnitude
+        local mid = (from + to) / 2
+        local angle = math.atan2(to.Y - from.Y, to.X - from.X)
+
+        line.Size = UDim2.new(0, diff, 0, thickness)
+        line.Position = UDim2.fromOffset(mid.X - diff / 2, mid.Y - thickness / 2)
+        line.Rotation = math.deg(angle)
+        line.BackgroundColor3 = color
+    end
+
+    local function isFriendly(plr)
+        if not ESP.TeamCheck then return false end
+        if LocalPlayer.Team and plr.Team then
+            return LocalPlayer.Team == plr.Team and not LocalPlayer.Neutral
+        end
+        return false
+    end
+
+    local function getBox(char)
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return nil end
+
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum or hum.Health <= 0 then return nil end
+
+        local minX, maxX = math.huge, -math.huge
+        local minY, maxY = math.huge, -math.huge
+        local rootScreen, rootOnScreen = Camera:WorldToViewportPoint(hrp.Position)
+
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") and part.Parent ~= LocalPlayer.Character then
+                local cf = part.CFrame
+                local size = part.Size / 2
+
+                local corners = {
+                    cf * Vector3.new(-size.X, -size.Y, -size.Z),
+                    cf * Vector3.new(-size.X, -size.Y, size.Z),
+                    cf * Vector3.new(-size.X, size.Y, -size.Z),
+                    cf * Vector3.new(-size.X, size.Y, size.Z),
+                    cf * Vector3.new(size.X, -size.Y, -size.Z),
+                    cf * Vector3.new(size.X, -size.Y, size.Z),
+                    cf * Vector3.new(size.X, size.Y, -size.Z),
+                    cf * Vector3.new(size.X, size.Y, size.Z),
+                }
+
+                for _, corner in ipairs(corners) do
+                    local screenPos = Camera:WorldToViewportPoint(corner)
+                    if screenPos.Z > 0 then
+                        minX = math.min(minX, screenPos.X)
+                        maxX = math.max(maxX, screenPos.X)
+                        minY = math.min(minY, screenPos.Y)
+                        maxY = math.max(maxY, screenPos.Y)
+                    end
+                end
+            end
+        end
+
+        if minX == math.huge then
+            return nil
+        end
+
+        local width = maxX - minX
+        local height = maxY - minY
+
+        return {
+            X = minX,
+            Y = minY,
+            W = width,
+            H = height,
+            OnScreen = (rootOnScreen and rootScreen.Z > 0),
+            Distance = (Camera.CFrame.Position - hrp.Position).Magnitude,
+            WorldPos = hrp.Position,
+        }
+    end
+
+    local function offscreenEdge(worldPos, vp)
+        local sp = Camera:WorldToViewportPoint(worldPos)
+        local center = Vector2.new(vp.X / 2, vp.Y / 2)
+        local pos
+        if sp.Z < 0 then
+            pos = center - (Vector2.new(sp.X, sp.Y) - center)
+        else
+            pos = Vector2.new(sp.X, sp.Y)
+        end
+        local dir = pos - center
+        if dir.Magnitude < 1 then dir = Vector2.new(0, -1) end
+        dir = dir.Unit
+        local margin = 50
+        local hw, hh = vp.X / 2 - margin, vp.Y / 2 - margin
+        local sx = (math.abs(dir.X) > 1e-3) and (hw / math.abs(dir.X)) or math.huge
+        local sy = (math.abs(dir.Y) > 1e-3) and (hh / math.abs(dir.Y)) or math.huge
+        local scale = math.min(sx, sy)
+        local edge = center + dir * scale
+        local angle = math.deg(math.atan2(dir.Y, dir.X)) + 90
+        return edge, angle
+    end
+
+    Players.PlayerAdded:Connect(function(plr)
+        if plr ~= LocalPlayer then build(plr) end
+    end)
+    Players.PlayerRemoving:Connect(destroy)
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then build(plr) end
+    end
+
+    RunService.RenderStepped:Connect(function()
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr == LocalPlayer then continue end
+            local e = Elements[plr]
+            if not e then continue end
+
+            local char = plr.Character
+            if not char then hide(plr); continue end
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if not hum or hum.Health <= 0 then hide(plr); continue end
+            if isFriendly(plr) then hide(plr); continue end
+
+            local b = getBox(char)
+            if not b then hide(plr); continue end
+            if b.Distance > ESP.MaxDistance then hide(plr); continue end
+
+            if ESP.Chams then
+                e.Highlight.Adornee = char
+                e.Highlight.FillColor = ESP.AccentColor
+                e.Highlight.Enabled = true
+            else
+                e.Highlight.Enabled = false
+            end
+
+            if b.OnScreen then
+                e.Arrow.Visible = false
+
+                e.Container.Position = UDim2.fromOffset(b.X, b.Y)
+                e.Container.Size = UDim2.fromOffset(b.W, b.H)
+                e.Container.Visible = true
+
+                if ESP.BoxStyle == "Full" then
+                    e.Box.Visible = ESP.Box
+                    e.BoxStroke.Enabled = ESP.Box
+                    for _, c in ipairs(e.Corners) do c.Visible = false end
+                elseif ESP.BoxStyle == "Corner" then
+                    e.Box.Visible = false
+                    e.BoxStroke.Enabled = false
+                    if ESP.Box then
+                        local w, h = b.W, b.H
+                        local clen, cthick = 12, 2
+                        e.Corners[1].Size = UDim2.fromOffset(clen, cthick)
+                        e.Corners[1].Position = UDim2.fromOffset(0, 0)
+                        e.Corners[1].BackgroundColor3 = ESP.AccentColor
+                        e.Corners[1].Visible = true
+                        e.Corners[2].Size = UDim2.fromOffset(cthick, clen)
+                        e.Corners[2].Position = UDim2.fromOffset(0, 0)
+                        e.Corners[2].BackgroundColor3 = ESP.AccentColor
+                        e.Corners[2].Visible = true
+                        e.Corners[3].Size = UDim2.fromOffset(clen, cthick)
+                        e.Corners[3].Position = UDim2.fromOffset(w - clen, 0)
+                        e.Corners[3].BackgroundColor3 = ESP.AccentColor
+                        e.Corners[3].Visible = true
+                        e.Corners[4].Size = UDim2.fromOffset(cthick, clen)
+                        e.Corners[4].Position = UDim2.fromOffset(w - cthick, 0)
+                        e.Corners[4].BackgroundColor3 = ESP.AccentColor
+                        e.Corners[4].Visible = true
+                        e.Corners[5].Size = UDim2.fromOffset(clen, cthick)
+                        e.Corners[5].Position = UDim2.fromOffset(0, h - cthick)
+                        e.Corners[5].BackgroundColor3 = ESP.AccentColor
+                        e.Corners[5].Visible = true
+                        e.Corners[6].Size = UDim2.fromOffset(cthick, clen)
+                        e.Corners[6].Position = UDim2.fromOffset(0, h - clen)
+                        e.Corners[6].BackgroundColor3 = ESP.AccentColor
+                        e.Corners[6].Visible = true
+                        e.Corners[7].Size = UDim2.fromOffset(clen, cthick)
+                        e.Corners[7].Position = UDim2.fromOffset(w - clen, h - cthick)
+                        e.Corners[7].BackgroundColor3 = ESP.AccentColor
+                        e.Corners[7].Visible = true
+                        e.Corners[8].Size = UDim2.fromOffset(cthick, clen)
+                        e.Corners[8].Position = UDim2.fromOffset(w - cthick, h - clen)
+                        e.Corners[8].BackgroundColor3 = ESP.AccentColor
+                        e.Corners[8].Visible = true
+                    else
+                        for _, c in ipairs(e.Corners) do c.Visible = false end
+                    end
+                end
+
+                e.Shadow.Visible = ESP.Box
+                e.BoxStroke.Color = ESP.AccentColor
+                e.BoxStroke.Thickness = ESP.StrokeThickness
+                e.BoxFill.Visible = (ESP.Box and ESP.BoxFiller)
+                e.BoxFill.BackgroundColor3 = ESP.AccentColor
+
+                e.NameTag.Visible = ESP.Name
+                e.NameLabel.Text = plr.DisplayName ~= "" and plr.DisplayName or plr.Name
+                e.NameLabel.TextSize = ESP.TextSize
+                e.NameLabel.TextColor3 = ESP.TextColor
+                e.NameTagStroke.Color = ESP.AccentColor
+
+                e.DistTag.Visible = ESP.Distance
+                e.DistLabel.Text = string.format("%dm", math.floor(b.Distance))
+                e.DistLabel.TextSize = ESP.TextSize - 2
+                e.DistLabel.TextColor3 = ESP.TextColor
+                e.DistTagStroke.Color = ESP.AccentColor
+
+                if ESP.Health then
+                    local hp = math.clamp(hum.Health / math.max(hum.MaxHealth, 1), 0, 1)
+                    e.HpBg.Visible = true
+                    e.HpFill.Size = UDim2.new(1, 0, hp, 0)
+                    e.HpFill.BackgroundColor3 = hpColor(hp)
+                    e.HpText.Text = tostring(math.floor(hp * 100))
+                    e.HpText.TextColor3 = ESP.TextColor
+                    e.HpText.Visible = b.H > 50
+                else
+                    e.HpBg.Visible = false
+                end
+
+                if ESP.Tracers then
+                    local vp = Camera.ViewportSize
+                    local center = Vector2.new(vp.X / 2, vp.Y / 2)
+                    local targetPos = Vector2.new(b.X + b.W / 2, b.Y + b.H / 2)
+                    drawLine(e.Tracer, center, targetPos, 1, ESP.AccentColor)
+                    e.Tracer.Visible = true
+                else
+                    e.Tracer.Visible = false
+                end
+            else
+                e.Container.Visible = false
+                e.Tracer.Visible = false
+
+                if ESP.OffScreenArrow then
+                    local edge, angle = offscreenEdge(b.WorldPos, Camera.ViewportSize)
+                    e.Arrow.Position = UDim2.fromOffset(edge.X, edge.Y)
+                    e.Arrow.Visible = true
+                    e.ArrowStroke.Color = ESP.AccentColor
+                    e.ArrowLbl.TextColor3 = ESP.AccentColor
+                    e.ArrowLbl.Rotation = angle
+                else
+                    e.Arrow.Visible = false
+                end
+            end
+        end
+    end)
+
+    local FeatureGroup = PlayerESP:AddGroupBox({Column = 1, Text = "Display"})
+    FeatureGroup:AddToggle({Text = "Box", Default = false, Callback = function(v) ESP.Box = v end})
+    FeatureGroup:AddToggle({Text = "Name Tag", Default = false, Callback = function(v) ESP.Name = v end})
+    FeatureGroup:AddToggle({Text = "Distance", Default = false, Callback = function(v) ESP.Distance = v end})
+    FeatureGroup:AddToggle({Text = "Health Bar", Default = false, Callback = function(v) ESP.Health = v end})
+    FeatureGroup:AddToggle({Text = "Off-Screen Arrow", Default = false, Callback = function(v) ESP.OffScreenArrow = v end})
+    FeatureGroup:AddToggle({Text = "Tracers", Default = false, Callback = function(v) ESP.Tracers = v end})
+
+    local AdvancedGroup = PlayerESP:AddGroupBox({Column = 1, Text = "Advanced"})
+    AdvancedGroup:AddToggle({Text = "Chams", Default = false, Callback = function(v) ESP.Chams = v end})
+    AdvancedGroup:AddToggle({Text = "Team Check", Default = false, Callback = function(v) ESP.TeamCheck = v end})
+
+    local StyleGroup = PlayerESP:AddGroupBox({Column = 2, Text = "Style"})
+    StyleGroup:AddSlider({Text = "Text Size", Min = 9, Max = 18, Default = 12, Callback = function(v) ESP.TextSize = v end})
+    StyleGroup:AddSlider({Text = "Stroke Thickness", Min = 1, Max = 4, Default = 2, Callback = function(v) ESP.StrokeThickness = v end})
+    StyleGroup:AddDropdown({
+        Text = "Box Style",
+        Options = {"Full", "Corner"},
+        Default = "Full",
+        Callback = function(v) ESP.BoxStyle = v end,
+    })
+    StyleGroup:AddToggle({Text = "Box Filler", Default = false, Callback = function(v) ESP.BoxFiller = v end})
+
+    local ColorGroup = PlayerESP:AddGroupBox({Column = 3, Text = "Colors"})
+    ColorGroup:AddColorPicker({Text = "Accent", Default = Color3.fromRGB(150, 200, 255), Callback = function(c) ESP.AccentColor = c end})
+    ColorGroup:AddColorPicker({Text = "Text", Default = Color3.fromRGB(255, 255, 255), Callback = function(c) ESP.TextColor = c end})
+
+    local FilterGroup = PlayerESP:AddGroupBox({Column = 3, Text = "Filters"})
+    FilterGroup:AddSlider({
+        Text = "Max Distance", Min = 50, Max = 5000, Default = 1000,
+        Callback = function(v) ESP.MaxDistance = v end,
+    })
+
+    return PlayerESP
+end
+
+-- ═══════════════════════════════════════════════════
 --  DESTROY
 -- ═══════════════════════════════════════════════════
 function Library:Destroy()
