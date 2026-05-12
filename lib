@@ -6647,7 +6647,6 @@ function Library:AddPlayerESP()
         Health = false,
         Chams = false,
         OffScreenArrow = false,
-        Tracers = false,
         TeamCheck = false,
         MaxDistance = 1000,
         TextSize = 12,
@@ -6674,6 +6673,11 @@ function Library:AddPlayerESP()
     Gui.Parent = getGuiParent()
 
     local Elements = {}
+    local TrackedPlayers = {}
+    local viewportSize = Camera.ViewportSize
+    Camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+        viewportSize = Camera.ViewportSize
+    end)
 
     local function corner(parent, r)
         local c = Instance.new("UICorner")
@@ -6908,14 +6912,6 @@ function Library:AddPlayerESP()
         highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         highlight.Parent = Gui
 
-        local tracer = Instance.new("Frame")
-        tracer.Name = "Tracer_" .. plr.Name
-        tracer.BackgroundColor3 = ESP.AccentColor
-        tracer.BorderSizePixel = 0
-        tracer.Visible = false
-        tracer.ZIndex = 0
-        tracer.Parent = Gui
-
         Elements[plr] = {
             Container = container,
             Shadow = shadow,
@@ -6936,8 +6932,8 @@ function Library:AddPlayerESP()
             ArrowStroke = arrowStroke,
             ArrowLbl = arrowLbl,
             Highlight = highlight,
-            Tracer = tracer,
         }
+        table.insert(TrackedPlayers, plr)
     end
 
     local function destroy(plr)
@@ -6947,6 +6943,13 @@ function Library:AddPlayerESP()
         if e.Arrow then e.Arrow:Destroy() end
         if e.Highlight then e.Highlight:Destroy() end
         Elements[plr] = nil
+
+        for i = #TrackedPlayers, 1, -1 do
+            if TrackedPlayers[i] == plr then
+                table.remove(TrackedPlayers, i)
+                break
+            end
+        end
     end
 
     local function hide(plr)
@@ -6955,7 +6958,6 @@ function Library:AddPlayerESP()
         e.Container.Visible = false
         e.Arrow.Visible = false
         e.Highlight.Enabled = false
-        e.Tracer.Visible = false
     end
 
     local function drawLine(line, from, to, thickness, color)
@@ -6978,7 +6980,7 @@ function Library:AddPlayerESP()
     end
 
     local function getBox(char)
-        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("LowerTorso") or char.PrimaryPart
         if not hrp then return nil end
 
         local hum = char:FindFirstChildOfClass("Humanoid")
@@ -6988,30 +6990,44 @@ function Library:AddPlayerESP()
         local minY, maxY = math.huge, -math.huge
         local rootScreen, rootOnScreen = Camera:WorldToViewportPoint(hrp.Position)
 
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") and part.Parent ~= LocalPlayer.Character then
-                local cf = part.CFrame
-                local size = part.Size / 2
+        local modelCFrame, modelSize = char:GetBoundingBox()
+        if modelCFrame and modelSize then
+            local halfSize = modelSize / 2
+            local corners = {
+                modelCFrame * Vector3.new(-halfSize.X, -halfSize.Y, -halfSize.Z),
+                modelCFrame * Vector3.new(-halfSize.X, -halfSize.Y, halfSize.Z),
+                modelCFrame * Vector3.new(-halfSize.X, halfSize.Y, -halfSize.Z),
+                modelCFrame * Vector3.new(-halfSize.X, halfSize.Y, halfSize.Z),
+                modelCFrame * Vector3.new(halfSize.X, -halfSize.Y, -halfSize.Z),
+                modelCFrame * Vector3.new(halfSize.X, -halfSize.Y, halfSize.Z),
+                modelCFrame * Vector3.new(halfSize.X, halfSize.Y, -halfSize.Z),
+                modelCFrame * Vector3.new(halfSize.X, halfSize.Y, halfSize.Z),
+            }
 
-                local corners = {
-                    cf * Vector3.new(-size.X, -size.Y, -size.Z),
-                    cf * Vector3.new(-size.X, -size.Y, size.Z),
-                    cf * Vector3.new(-size.X, size.Y, -size.Z),
-                    cf * Vector3.new(-size.X, size.Y, size.Z),
-                    cf * Vector3.new(size.X, -size.Y, -size.Z),
-                    cf * Vector3.new(size.X, -size.Y, size.Z),
-                    cf * Vector3.new(size.X, size.Y, -size.Z),
-                    cf * Vector3.new(size.X, size.Y, size.Z),
-                }
+            for _, worldPoint in ipairs(corners) do
+                local screenPos = Camera:WorldToViewportPoint(worldPoint)
+                if screenPos.Z > 0 then
+                    minX = math.min(minX, screenPos.X)
+                    maxX = math.max(maxX, screenPos.X)
+                    minY = math.min(minY, screenPos.Y)
+                    maxY = math.max(maxY, screenPos.Y)
+                end
+            end
+        end
 
-                for _, corner in ipairs(corners) do
-                    local screenPos = Camera:WorldToViewportPoint(corner)
-                    if screenPos.Z > 0 then
-                        minX = math.min(minX, screenPos.X)
-                        maxX = math.max(maxX, screenPos.X)
-                        minY = math.min(minY, screenPos.Y)
-                        maxY = math.max(maxY, screenPos.Y)
-                    end
+        if minX == math.huge then
+            local head = char:FindFirstChild("Head")
+            local top = head and head.Position or hrp.Position + Vector3.new(0, 2, 0)
+            local bottom = hrp.Position
+            local left = hrp.Position - Camera.CFrame.RightVector
+            local right = hrp.Position + Camera.CFrame.RightVector
+            for _, worldPoint in ipairs({top, bottom, left, right}) do
+                local screenPos = Camera:WorldToViewportPoint(worldPoint)
+                if screenPos.Z > 0 then
+                    minX = math.min(minX, screenPos.X)
+                    maxX = math.max(maxX, screenPos.X)
+                    minY = math.min(minY, screenPos.Y)
+                    maxY = math.max(maxY, screenPos.Y)
                 end
             end
         end
@@ -7020,8 +7036,8 @@ function Library:AddPlayerESP()
             return nil
         end
 
-        local width = maxX - minX
-        local height = maxY - minY
+        local width = math.max(1, maxX - minX)
+        local height = math.max(1, maxY - minY)
 
         return {
             X = minX,
@@ -7065,8 +7081,7 @@ function Library:AddPlayerESP()
     end
 
     RunService.RenderStepped:Connect(function()
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr == LocalPlayer then continue end
+        for _, plr in ipairs(TrackedPlayers) do
             local e = Elements[plr]
             if not e then continue end
 
@@ -7172,21 +7187,11 @@ function Library:AddPlayerESP()
                     e.HpBg.Visible = false
                 end
 
-                if ESP.Tracers then
-                    local vp = Camera.ViewportSize
-                    local center = Vector2.new(vp.X / 2, vp.Y / 2)
-                    local targetPos = Vector2.new(b.X + b.W / 2, b.Y + b.H / 2)
-                    drawLine(e.Tracer, center, targetPos, 1, ESP.AccentColor)
-                    e.Tracer.Visible = true
-                else
-                    e.Tracer.Visible = false
-                end
             else
                 e.Container.Visible = false
-                e.Tracer.Visible = false
 
                 if ESP.OffScreenArrow then
-                    local edge, angle = offscreenEdge(b.WorldPos, Camera.ViewportSize)
+                    local edge, angle = offscreenEdge(b.WorldPos, viewportSize)
                     e.Arrow.Position = UDim2.fromOffset(edge.X, edge.Y)
                     e.Arrow.Visible = true
                     e.ArrowStroke.Color = ESP.AccentColor
@@ -7205,7 +7210,6 @@ function Library:AddPlayerESP()
     FeatureGroup:AddToggle({Text = "Distance", Default = false, Callback = function(v) ESP.Distance = v end})
     FeatureGroup:AddToggle({Text = "Health Bar", Default = false, Callback = function(v) ESP.Health = v end})
     FeatureGroup:AddToggle({Text = "Off-Screen Arrow", Default = false, Callback = function(v) ESP.OffScreenArrow = v end})
-    FeatureGroup:AddToggle({Text = "Tracers", Default = false, Callback = function(v) ESP.Tracers = v end})
 
     local AdvancedGroup = PlayerESP:AddGroupBox({Column = 1, Text = "Advanced"})
     AdvancedGroup:AddToggle({Text = "Chams", Default = false, Callback = function(v) ESP.Chams = v end})
