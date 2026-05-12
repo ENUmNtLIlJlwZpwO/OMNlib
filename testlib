@@ -6647,7 +6647,6 @@ function Library:AddPlayerESP()
         Health = false,
         Chams = false,
         OffScreenArrow = false,
-        Tracers = false,
         TeamCheck = false,
         MaxDistance = 1000,
         TextSize = 12,
@@ -6913,14 +6912,6 @@ function Library:AddPlayerESP()
         highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
         highlight.Parent = Gui
 
-        local tracer = Instance.new("Frame")
-        tracer.Name = "Tracer_" .. plr.Name
-        tracer.BackgroundColor3 = ESP.AccentColor
-        tracer.BorderSizePixel = 0
-        tracer.Visible = false
-        tracer.ZIndex = 0
-        tracer.Parent = Gui
-
         Elements[plr] = {
             Container = container,
             Shadow = shadow,
@@ -6941,7 +6932,6 @@ function Library:AddPlayerESP()
             ArrowStroke = arrowStroke,
             ArrowLbl = arrowLbl,
             Highlight = highlight,
-            Tracer = tracer,
         }
         table.insert(TrackedPlayers, plr)
     end
@@ -6968,7 +6958,6 @@ function Library:AddPlayerESP()
         e.Container.Visible = false
         e.Arrow.Visible = false
         e.Highlight.Enabled = false
-        e.Tracer.Visible = false
     end
 
     local function drawLine(line, from, to, thickness, color)
@@ -7198,17 +7187,8 @@ function Library:AddPlayerESP()
                     e.HpBg.Visible = false
                 end
 
-                if ESP.Tracers then
-                    local center = Vector2.new(viewportSize.X / 2, viewportSize.Y / 2)
-                    local targetPos = Vector2.new(b.X + b.W / 2, b.Y + b.H / 2)
-                    drawLine(e.Tracer, center, targetPos, 1, ESP.AccentColor)
-                    e.Tracer.Visible = true
-                else
-                    e.Tracer.Visible = false
-                end
             else
                 e.Container.Visible = false
-                e.Tracer.Visible = false
 
                 if ESP.OffScreenArrow then
                     local edge, angle = offscreenEdge(b.WorldPos, viewportSize)
@@ -7230,7 +7210,6 @@ function Library:AddPlayerESP()
     FeatureGroup:AddToggle({Text = "Distance", Default = false, Callback = function(v) ESP.Distance = v end})
     FeatureGroup:AddToggle({Text = "Health Bar", Default = false, Callback = function(v) ESP.Health = v end})
     FeatureGroup:AddToggle({Text = "Off-Screen Arrow", Default = false, Callback = function(v) ESP.OffScreenArrow = v end})
-    FeatureGroup:AddToggle({Text = "Tracers", Default = false, Callback = function(v) ESP.Tracers = v end})
 
     local AdvancedGroup = PlayerESP:AddGroupBox({Column = 1, Text = "Advanced"})
     AdvancedGroup:AddToggle({Text = "Chams", Default = false, Callback = function(v) ESP.Chams = v end})
